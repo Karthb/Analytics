@@ -162,17 +162,50 @@ def _snap(r: float) -> float | None:
     return best if abs(math.log(r / best)) < math.log(1.06) else None
 
 
-def adjust_corporate_actions(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_ca_notices(meta: Path) -> set:
+    """(symbol, ex-date) pairs that NSE's PR 'Bc' file announced as bonus / split / consolidation."""
+    p = meta / "corp_actions.csv"
+    if not p.exists():
+        return set()
+    ca = pd.read_csv(p, dtype=str, keep_default_na=False)
+    ca = ca[ca["purpose"].str.contains(r"BONUS|SPLT|SPLIT|SUB-DIV|SUBDIV|CONSOL", case=False, regex=True)]
+    out = set()
+    for sym, raw in zip(ca["symbol"], ca["ex_date"]):
+        raw = raw.strip()
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%b-%Y", "%d-%m-%Y"):
+            try:
+                out.add((sym.strip(), pd.Timestamp(dt.datetime.strptime(raw, fmt))))
+                break
+            except ValueError:
+                continue
+    return out
+
+
+def adjust_corporate_actions(df: pd.DataFrame, unknown_days=(), notices=frozenset()) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Back-adjust prices for splits / bonuses / consolidations so period highs & lows match
     TradingView's (split-adjusted) charts.
 
     Detection, in order of preference:
-      A. NSE itself re-based the previous close (PrvsClsgPric != yesterday's close).
-      B. NSE issue size (shares, from the daily MCAP file) jumped by k and the price fell ~1/k.
+      A. NSE itself re-based the previous close by a large factor (capital reduction,
+         consolidation): PrvsClsgPric differs from our previous close by >= 25%.
+      B. NSE issue size (shares, from the daily MCAP file) jumped by k and the opening price
+         fell by ~1/k. If NSE's Bc file announced a bonus/split for that symbol and date, a
+         loose price check is enough; otherwise the price move must match 1/k closely (so share
+         issues from QIPs, rights or ESOPs on an ordinary trading day are not mistaken for splits).
       C. Issue size unknown: price gap beyond any circuit limit that matches a standard ratio.
+    A and C are skipped when a session between the two rows is missing from the store
+    (download error), because then "yesterday" is not really yesterday.
     """
     df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
     g = df.groupby("symbol", sort=False)
+    prev_d = g["date"].shift(1)
+    unk = np.array(sorted(pd.to_datetime(list(unknown_days))), dtype="datetime64[ns]")
+    if len(unk):
+        a = np.searchsorted(unk, prev_d.fillna(df["date"]).to_numpy(), side="right")
+        b = np.searchsorted(unk, df["date"].to_numpy(), side="left")
+        gap = pd.Series(b > a, index=df.index)
+    else:
+        gap = pd.Series(False, index=df.index)
     prev_c = g["close"].shift(1)
     prev_issue = g["issue_size"].shift(1)
     pc = df["prev_close"]
@@ -182,12 +215,18 @@ def adjust_corporate_actions(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFra
     ro = df["open"] / pc
 
     factor = pd.Series(1.0, index=df.index)
-    ev_a = prev_c.gt(0) & pc.gt(0) & (r_nse - 1).abs().gt(0.02)
+    ev_a = ~gap & prev_c.gt(0) & pc.gt(0) & ((r_nse <= 0.8) | (r_nse >= 1.25))
     factor[ev_a] = r_nse[ev_a]
-    ev_b = (~ev_a & k.notna() & ((k >= 1.1) | (k <= 0.91))
-            & ((rc * k - 1).abs() < 0.3) & ((ro * k - 1).abs() < 0.3))
+    big_k = k.notna() & ((k >= 1.1) | (k <= 0.91))
+    lk = np.log(k.where(big_k, 1.0)).abs()
+    loose = ((rc * k - 1).abs() < 0.3) & ((ro * k - 1).abs() < 0.3)
+    tight = ((np.log((ro * k).where(big_k, 1.0)).abs() < np.maximum(0.25 * lk, 0.02))
+             & (np.log((rc * k).where(big_k, 1.0)).abs() < np.maximum(0.5 * lk, 0.05)))
+    announced = pd.Series([(s, d) in notices for s, d in zip(df["symbol"], df["date"])], index=df.index) \
+        if notices else pd.Series(False, index=df.index)
+    ev_b = ~ev_a & big_k & ((announced & loose) | tight)
     factor[ev_b] = 1.0 / k[ev_b]
-    ev_c = (~ev_a & ~ev_b & k.isna() & prev_c.notna() & pc.gt(0)
+    ev_c = (~gap & ~ev_a & ~ev_b & k.isna() & prev_c.notna() & pc.gt(0)
             & ((ro < 0.75) | (ro > 1.33)) & ((rc < 0.75) | (rc > 1.33)))
     for i in np.flatnonzero(ev_c.to_numpy()):
         s = _snap(float(ro.iat[i]))
@@ -202,7 +241,8 @@ def adjust_corporate_actions(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFra
     df["volume"] = df["volume"].to_numpy() / mult
     events = df.loc[df["_f"] != 1.0, ["symbol", "date", "_f"]].rename(columns={"_f": "factor"})
     df = df.drop(columns="_f")
-    log(f"corporate-action adjustments: {len(events)} (A={int(ev_a.sum())}, B={int(ev_b.sum())})")
+    log(f"corporate-action adjustments: {len(events)} (A={int(ev_a.sum())}, B={int(ev_b.sum())}, "
+        f"announced={int((ev_b & announced).sum())})")
     return df, events
 
 
@@ -377,6 +417,13 @@ def main() -> int:
     if raw.empty:
         log("ERROR: no NSE data in the store yet")
         return 1
+    raw = nse.remove_duplicate_days(store, raw)
+    have = set(raw["date"].dt.date)
+    no_sess = store.no_session_dates()
+    unknown = [d for d in pd.bdate_range(raw["date"].min(), raw["date"].max()).date
+               if d not in have and d not in no_sess]
+    if unknown:
+        log(f"{len(unknown)} weekday(s) not downloaded yet (will retry): {', '.join(map(str, unknown[:5]))}")
     nse_date = raw["date"].max()
     log(f"history: {len(raw):,} rows, {raw['date'].nunique()} sessions, {raw['date'].min().date()} .. {nse_date.date()}")
 
@@ -384,7 +431,7 @@ def main() -> int:
     df = link_by_isin(df)
     df["_p"] = df["series"].map(nse.SERIES_PRIORITY).fillna(9)
     df = df.sort_values(["symbol", "date", "_p"]).drop_duplicates(["symbol", "date"], keep="first").drop(columns="_p")
-    df, events = adjust_corporate_actions(df)
+    df, events = adjust_corporate_actions(df, unknown, load_ca_notices(store.meta))
 
     tv = None if args.no_fundamentals else fnd.fetch_tradingview(session)
     live = None

@@ -120,10 +120,12 @@ def secbhav_url(d: dt.date) -> str:
     return f"{NSE_ARCHIVES}/products/content/sec_bhavdata_full_{d:%d%m%Y}.csv"
 
 
-def parse_udiff(content: bytes) -> tuple[pd.DataFrame, pd.DataFrame]:
+def parse_udiff(content: bytes, expect: dt.date | None = None) -> tuple[pd.DataFrame, pd.DataFrame] | None:
     members = _zip_members(content)
     raw = next(iter(members.values()))
     df = _read_csv(raw)
+    if expect is not None and len(df) and df["TradDt"].iloc[0] != expect.isoformat():
+        return None  # file does not belong to the requested date
     df = df[(df["FinInstrmTp"] == "STK") & (df["SctySrs"].isin(EQUITY_SERIES))]
     out = pd.DataFrame({
         "symbol": df["TckrSymb"].values,
@@ -142,8 +144,13 @@ def parse_udiff(content: bytes) -> tuple[pd.DataFrame, pd.DataFrame]:
     return out, names
 
 
-def parse_secbhav(content: bytes) -> pd.DataFrame:
+def parse_secbhav(content: bytes, expect: dt.date | None = None) -> pd.DataFrame | None:
     df = _read_csv(content)
+    if expect is not None and len(df):
+        d1 = pd.to_datetime(df["DATE1"].iloc[0], format="%d-%b-%Y", errors="coerce")
+        if pd.isna(d1) or d1.date() != expect:
+            # On Sundays/holidays NSE re-serves the PREVIOUS session's file under the new date.
+            return None
     df = df[df["SERIES"].isin(EQUITY_SERIES)]
     return pd.DataFrame({
         "symbol": df["SYMBOL"].values,
@@ -193,14 +200,15 @@ def fetch_day(session: requests.Session, d: dt.date, with_delivery: bool):
     """Download one trading day. Returns (frame, names, corp_actions) or None if no session."""
     names = None
     content = http_get(session, udiff_url(d))
-    if content is not None:
-        day, names = parse_udiff(content)
+    parsed = parse_udiff(content, d) if content is not None else None
+    if parsed is not None:
+        day, names = parsed
         day["deliv_pct"] = float("nan")
     else:
         sec = http_get(session, secbhav_url(d))
-        if sec is None:
-            return None
-        day = parse_secbhav(sec)
+        day = parse_secbhav(sec, d) if sec is not None else None
+        if day is None:
+            return None  # no trading session on this date
         with_delivery = False  # already have it
 
     day["issue_size"] = float("nan")
@@ -219,8 +227,10 @@ def fetch_day(session: requests.Session, d: dt.date, with_delivery: bool):
         sec = http_get(session, secbhav_url(d))
         if sec is not None:
             try:
-                s = parse_secbhav(sec).drop_duplicates(["symbol", "series"]).set_index(["symbol", "series"])["deliv_pct"]
-                day["deliv_pct"] = pd.MultiIndex.from_frame(day[["symbol", "series"]]).map(s).values
+                sb = parse_secbhav(sec, d)
+                if sb is not None:
+                    s = sb.drop_duplicates(["symbol", "series"]).set_index(["symbol", "series"])["deliv_pct"]
+                    day["deliv_pct"] = pd.MultiIndex.from_frame(day[["symbol", "series"]]).map(s).values
             except Exception as exc:
                 log(f"{d}: delivery file unreadable ({exc})")
 
@@ -302,6 +312,35 @@ class EodStore:
             df[c] = pd.to_numeric(df[c], errors="coerce")
         df["isin"] = df["isin"].fillna("").astype(str)
         return df
+
+
+def remove_duplicate_days(store: EodStore, df: pd.DataFrame) -> pd.DataFrame:
+    """Delete stored days that are copies of the previous session (written by older versions
+    when NSE re-served the last bhavcopy on a Sunday/holiday). Returns df without them."""
+    if df.empty:
+        return df
+    dates = sorted(df["date"].unique())
+    by_date = {d: g.set_index("symbol")[["close", "volume"]] for d, g in df.groupby("date")}
+    bad = []
+    prev = by_date[dates[0]]
+    for d in dates[1:]:
+        cur = by_date[d]
+        j = cur.join(prev, rsuffix="_p", how="inner")
+        if len(j) and ((j["close"] == j["close_p"]) & (j["volume"] == j["volume_p"])).mean() > 0.5:
+            bad.append(pd.Timestamp(d))
+            continue  # keep comparing with the real previous session
+        prev = cur
+    if not bad:
+        return df
+    ns = store.no_session_dates()
+    for d in bad:
+        p = store.path_for(d.date())
+        if p.exists():
+            p.unlink()
+        ns.add(d.date())
+    store.save_no_session(ns)
+    log(f"removed {len(bad)} duplicate non-trading day(s): {', '.join(str(d.date()) for d in bad[:5])}{' ...' if len(bad) > 5 else ''}")
+    return df[~df["date"].isin(bad)].reset_index(drop=True)
 
 
 def update_store(store: EodStore, start: dt.date, today: dt.date, session: requests.Session,
