@@ -89,6 +89,40 @@ last-used screen also comes back automatically.
 
 ---
 
+## 2b. Sector Rotation & Relative Strength page
+
+The same site has a second page: **`https://<your-github-username>.github.io/<repo>/rotation.html`**
+(also linked from the screener's header). It is built in the same workflow run and uses the same
+NSE history, plus NSE's daily file of **all ~190 NSE indices** and the index constituent lists.
+
+| Tab | What it shows |
+|---|---|
+| **Overview** | Market regime (Nifty 50/500, midcaps vs large caps, VIX), where every sectoral index sits in the rotation, quadrant-change alerts, breadth, RS leaders and "RS new high before price" setups |
+| **Relative Rotation Graph** | Animated RRG with tails. Universes: core sectors, all sectoral / thematic / broad / strategy indices, the **stocks of any index** (e.g. Nifty Bank stocks vs Nifty Bank), a custom pick or a watchlist. Any index can be the benchmark. Daily or weekly, adjustable tail and lookback, ▶ play through history |
+| **Sector Rotation** | Leadership table (1D…1Y relative returns, rotation score, rank change 1W/4W, daily + weekly quadrant, % of constituents above 50/200 DMA, average RS of members), 13-week rank-history heatmap, Dorsey-Wright-style relative-strength matrix |
+| **Sector Leaders** | Pick a sector/theme → its constituents ranked by RS Rating, Mansfield RS and RRG quadrant **vs the sector index**, RS-line new highs, stage, trend template |
+| **Relative Strength** | Every NSE stock with institutional RS metrics: **RS Rating 1–99** (IBD method), Mansfield RS, RS-line 52-week high / new-high-before-price, RRG quadrant vs Nifty 500 and vs its sector, Weinstein stage, Minervini trend template, up/down volume, delivery %. Quick screens, filters, CSV export, click a stock for price + RS line + Mansfield charts |
+| **Ratio Charts** | Any stock/index ÷ any stock/index (or up to 8 numerators rebased to 100), 50/200-day SMA and RSI of the ratio, 52-week range position, one-click popular ratios (Midcap/Nifty, Equal-weight/Nifty 500, High Beta/Low Vol …) |
+| **Market Breadth** | Strike-style diffusion indicators for Nifty 50/100/200/500, Midcap 150, Smallcap 250, Microcap 250, F&O, all NSE and every sector: % above 20/50/100/200 SMA, % RSI ≥ 50, % MACD buy, % ADX ≥ 25, % RMI > 50, new 1M/3M/52W highs & lows, A/D line, McClellan Oscillator & Summation Index, Zweig breadth thrust, 4% movers, sector participation table |
+| **Heatmap** | Treemap of any universe sized by market cap, coloured by 1D…6M return, RS Rating or Mansfield RS (colour-blind-safe option) |
+| **Methodology** | Every formula and data source |
+
+**Watchlists** (★ in the header) are saved in your browser and can be used as a universe in the RRG,
+Relative Strength, Heatmap and Ratio tabs.
+
+Notes
+- The RRG uses a public smoothed approximation of the proprietary JdK RS-Ratio / RS-Momentum; the
+  quadrants and rotation behave the same, exact values can differ a little from Strike/StockCharts.
+- Strike's "RMI" diffusion uses its proprietary Rohit Momentum Indicator. This page uses Roger
+  Altman's published Relative Momentum Index (RMI 20, 5) instead.
+- During market hours, indices that TradingView doesn't carry are **estimated** from their
+  constituents until NSE's official close arrives (the header shows how many).
+- Breadth history uses today's index constituents (survivorship bias).
+- The store now keeps NSE history from **1 Jan two years back**. The first run after this update
+  back-fills that extra year once (about 5 extra minutes).
+
+---
+
 ## 3. Where the numbers come from
 
 | Data | Source |
@@ -133,7 +167,8 @@ Commands for other systems:
 ```bash
 pip install -r requirements.txt
 python scripts/build_data.py          # download new NSE days + build site/data.js
-# then open site/index.html in a browser
+python scripts/build_rotation.py      # NSE index files + build the rotation page data
+# then open site/index.html or site/rotation.html in a browser
 ```
 Useful flags: `--no-download` (rebuild offline), `--no-fundamentals`, `--no-live`, `--start 2025-01-01`.
 
@@ -149,6 +184,7 @@ Useful flags: `--no-download` (rebuild offline), `--no-fundamentals`, `--no-live
 | Banner: *Fundamentals unavailable* | The TradingView feed didn't answer that run. Prices and levels still work, and the next run usually fixes it. |
 | Data stuck on an old date | NSE may not have published yet (holiday or late). Runs retry at 20:00 and 22:00. You can also click *Run workflow*. |
 | NSE blocks GitHub's servers (download errors in the log) | Use `run_local.bat` on your PC, which uses your own Indian internet connection. |
+| Rotation page says *rotation-data.js was not found* | The workflow hasn't run since you added the page, or its *Build the Sector Rotation* step failed (open the run log). The screener is unaffected. |
 | Scheduled runs stopped | GitHub pauses schedules after 60 days without commits. The daily data commits normally prevent this. If it happens, click *Enable workflow* in Actions. |
 
 ---
@@ -160,8 +196,13 @@ Useful flags: `--no-download` (rebuild offline), `--no-fundamentals`, `--no-live
 scripts/nse_data.py            NSE downloads and the daily file store (data/eod/YYYY/YYYYMMDD.csv.gz)
 scripts/fundamentals.py        TradingView fundamentals (one request)
 scripts/build_data.py          adjustments, periods, indicators → site/data.js
+scripts/nse_indices.py         NSE daily index file store (data/indices/) + index constituents
+scripts/build_rotation.py      RS Rating, Mansfield, RRG, stages, breadth → site/rotation-data.js,
+                               site/rotation-series.js, site/breadth-data.js
 site/index.html                the screener (single file, no external libraries)
-data/                          stored NSE history (kept from 1 Jan of last year; older files pruned)
+site/rotation.html             Sector Rotation & Relative Strength page
+site/vendor/echarts.min.js     Apache ECharts 5.6 (charting library used by rotation.html)
+data/                          stored NSE history (kept from 1 Jan two years back; older files pruned)
 tests/                         synthetic fixtures + checks (python tests/make_fixtures.py, etc.)
 run_local.bat                  optional Windows launcher
 workflow-update.yml            copy of the workflow, for pasting into GitHub if needed

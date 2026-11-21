@@ -2,3 +2,6 @@ site/data.js
 __pycache__/
 *.pyc
 .venv/
+site/rotation-data.js
+site/rotation-series.js
+site/breadth-data.js
