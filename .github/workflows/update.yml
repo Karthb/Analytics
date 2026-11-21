@@ -39,6 +39,11 @@ jobs:
 
       - name: Download NSE data and build the screener
         run: python scripts/build_data.py
+        
+      - name: Build the Sector Rotation & Relative Strength page data
+        # A failure here never blocks the screener; the rotation page then shows "data not found" until the next good run.
+        continue-on-error: true
+        run: python scripts/build_rotation.py
 
       - name: Save new NSE data to the repository
         run: |
