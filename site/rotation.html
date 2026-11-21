@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSE Sector Rotation &amp; Relative Strength</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%23fff' stroke-width='2.4'/%3E%3Cpath d='M16 4v6M28 16h-6' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<script>
+// apply the saved theme before first paint
+(function(){try{var t=localStorage.getItem("rot.theme");t=t?JSON.parse(t):null;
+if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;}catch(e){}})();
+</script>
+<style>
+:root{
+  --bg:#f6f7fb; --panel:#fff; --ink:#1d2433; --muted:#667085; --line:#e6e8ef; --soft:#f2f3f8; --th:#fafbfc; --row2:#fbfbfd;
+  --accent:#4f46e5; --accent-soft:#eef0ff; --warn:#b45309; --warn-soft:#fff7e6;
+  --r:10px; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  /* chart tokens (validated reference palette) */
+  --c-surface:#fcfcfb; --c-text:#0b0b0b; --c-text2:#52514e; --c-muted:#898781; --c-grid:#e1e0d9; --c-axis:#c3c2b7;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --q-lead:#0ca30c; --q-weak:#d49000; --q-lag:#d03b3b; --q-imp:#2a78d6;
+  --q-lead-bg:rgba(12,163,12,.07); --q-weak-bg:rgba(237,161,0,.08); --q-lag-bg:rgba(208,59,59,.06); --q-imp-bg:rgba(42,120,214,.07);
+  --pos:#0b7a2f; --neg:#c62828; --pos-bg:#e3f4e8; --neg-bg:#fde8e8;
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0d; --panel:#1a1a19; --ink:#f0efec; --muted:#a3a29b; --line:#2c2c2a; --soft:#242423; --th:#20201f; --row2:#1d1d1c;
+  --accent:#8b85f0; --accent-soft:#25234a; --warn:#f2b54b; --warn-soft:#2d2414;
+  --shadow:none;
+  --c-surface:#1a1a19; --c-text:#f0efec; --c-text2:#c3c2b7; --c-muted:#898781; --c-grid:#2c2c2a; --c-axis:#383835;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s8:#e66767;
+  --q-lead:#22b922; --q-weak:#e0a21c; --q-lag:#e66767; --q-imp:#4b93ea;
+  --q-lead-bg:rgba(12,163,12,.10); --q-weak-bg:rgba(201,133,0,.11); --q-lag-bg:rgba(230,103,103,.09); --q-imp-bg:rgba(57,135,229,.10);
+  --pos:#3fcf6b; --neg:#ff7b7b; --pos-bg:#123321; --neg-bg:#3a1717;
+}
+:root[data-updown="br"]{--pos:#1c5cab;--pos-bg:#e3eefc}
+:root[data-theme="dark"][data-updown="br"]{--pos:#6da7ec;--pos-bg:#14273f}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-size:14px}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+header{display:flex;align-items:center;gap:12px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.brand .logo{width:28px;height:28px;border-radius:8px;background:#4f46e5;display:grid;place-items:center}
+.status{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.pill b{color:var(--ink);font-weight:600}
+.pill.live{background:var(--pos-bg);color:var(--pos)} .pill.warn{background:var(--warn-soft);color:var(--warn)}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:8px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{padding:4px 9px;font-size:12.5px}.btn.ghost{border-color:transparent;background:transparent}
+nav.tabs{display:flex;gap:2px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;position:sticky;top:53px;z-index:25}
+nav.tabs button{border:0;background:transparent;padding:11px 13px;cursor:pointer;color:var(--muted);font-weight:600;font-size:13.5px;border-bottom:2px solid transparent;white-space:nowrap}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+main{padding:14px 18px 40px;max-width:1700px;margin:0 auto}
+.view{display:none}.view.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px;min-width:0}
+.card>h2,.card .ch{margin:0;padding:12px 16px;font-size:14px;font-weight:700;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card .ch .sub,.card>h2 .sub{font-weight:400}
+.cb{padding:12px 16px}
+.controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:10px 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;box-shadow:var(--shadow)}
+.controls label.f{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+select,input[type=text],input[type=number],input[type=search],textarea{border:1px solid var(--line);border-radius:7px;padding:6px 8px;background:var(--panel);min-width:0}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+input[type=range]{accent-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:5px 10px;cursor:pointer;font-size:12.5px}
+.seg button.on{background:var(--accent);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px;font-size:12.5px;cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.check{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer;color:var(--ink)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px}
+.grid2e{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow)}
+.tile .k{font-size:12px;color:var(--muted)} .tile .v{font-size:22px;font-weight:700;margin-top:3px;letter-spacing:-.01em}
+.tile .s{font-size:12px;color:var(--muted);margin-top:2px}
+.chart{width:100%;height:420px}
+.chart.tall{height:600px}.chart.mid{height:330px}.chart.small{height:250px}
+.tablewrap{overflow:auto;max-height:640px}
+.tablewrap.free{max-height:none}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 9px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:right}
+th{position:sticky;top:0;background:var(--th);z-index:2;font-weight:600;color:var(--muted);font-size:12px;user-select:none}
+th.s{cursor:pointer} th.s:hover,th.sorted{color:var(--accent)}
+th.l,td.l{text-align:left} th.c,td.c{text-align:center}
+tbody tr{background:var(--panel)} tbody tr:nth-child(even){background:var(--row2)}
+tbody tr.click{cursor:pointer} tbody tr.click:hover{background:var(--accent-soft)}
+tbody tr.dim{opacity:.45}
+.symb{font-weight:600} .nm{color:var(--muted);font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis;display:block}
+.pos{color:var(--pos)} .neg{color:var(--neg)} .na{color:var(--muted);opacity:.7}
+.q{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.q::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.q.L{color:var(--q-lead);background:var(--q-lead-bg)} .q.W{color:var(--q-weak);background:var(--q-weak-bg)}
+.q.G{color:var(--q-lag);background:var(--q-lag-bg)} .q.I{color:var(--q-imp);background:var(--q-imp-bg)}
+.rsb{display:inline-block;min-width:30px;text-align:center;font-weight:700;border-radius:6px;padding:1px 6px}
+.flag{display:inline-block;font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 5px;background:var(--accent-soft);color:var(--accent);margin-left:4px}
+.sub{font-size:12px;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);line-height:1.5}
+.banner{padding:9px 14px;border-radius:9px;background:var(--warn-soft);color:var(--warn);font-size:13px;margin-bottom:12px}
+.banner:empty{display:none}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:6px}
+.li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:var(--soft);font-size:13px;cursor:pointer}
+.li:hover{outline:1px solid var(--accent)}
+.qcol h4{margin:0 0 8px;font-size:12.5px}
+.more{padding:10px;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;display:none}.overlay.open{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(980px,100%);background:var(--bg);z-index:50;transform:translateX(100%);transition:transform .2s ease;overflow:auto;box-shadow:-8px 0 30px rgba(0,0,0,.2)}
+.drawer.open{transform:none}
+.dhead{background:var(--panel);padding:16px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:3}
+.dhead h2{margin:0;font-size:22px}
+.dbody{padding:14px 22px 40px}
+.kv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px 16px}
+.kv div{display:flex;justify-content:space-between;padding:7px 9px;border-radius:7px;background:var(--soft);font-size:13px;gap:8px}
+.kv span:first-child{color:var(--muted)} .kv span:last-child{font-weight:600}
+.rules{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:13px}
+.rules div::before{content:"✗ ";color:var(--neg);font-weight:700}.rules div.ok::before{content:"✓ ";color:var(--pos)}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(820px,94vw);max-height:88vh;overflow:auto;background:var(--panel);border-radius:14px;z-index:60;display:none;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal.open{display:block}
+.modal .mh{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--panel);z-index:2}
+.modal .mb{padding:16px 20px;line-height:1.6}
+.x{border:0;background:transparent;cursor:pointer;color:var(--muted);font-size:20px;line-height:1}
+.method h3{margin:18px 0 6px;font-size:15px} .method p,.method li{line-height:1.6;font-size:13.5px} .method code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:12.5px}
+.matrix td{padding:4px 5px;font-size:11.5px;text-align:center;min-width:30px}
+.matrix th{font-size:11px;padding:4px 5px}
+.matrix td.l,.matrix th.l{text-align:left}
+.matrix th.rot{height:120px;vertical-align:bottom;white-space:nowrap}
+.matrix th.rot div{writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto}
+.heat-legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.loading{padding:30px;text-align:center;color:var(--muted)}
+.mobile-only{display:none}
+@media (max-width:1100px){.grid2,.grid2e,.grid3{grid-template-columns:1fr}.kv{grid-template-columns:1fr 1fr}}
+@media (max-width:700px){
+  header{padding:8px 10px;gap:6px;position:relative} .brand{font-size:15px} .status .pill.opt{display:none}
+  header .btn{padding:5px 9px;font-size:12.5px}
+  nav.tabs{top:0 !important;padding:0 6px} main{padding:10px}
+  .chart{height:360px}.chart.tall{height:460px}.rules{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="logo"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M8 1v4M15 8h-4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></div>NSE Sector Rotation</div>
+  <div class="status" id="status"><span class="pill">Loading data…</span></div>
+  <div class="spacer"></div>
+  <a class="btn" href="index.html" title="Open the Camarilla screener">Camarilla screener ↗</a>
+  <button class="btn" id="btnLists" title="Create watchlists to use as a universe">★ Watchlists</button>
+  <button class="btn" id="btnReload" title="Fetch the latest published data">↻ Reload</button>
+  <button class="btn ghost" id="btnTheme" title="Switch light / dark theme">Dark</button>
+</header>
+<nav class="tabs" id="tabs">
+  <button data-t="overview">Overview</button>
+  <button data-t="rrg">Relative Rotation Graph</button>
+  <button data-t="sectors">Sector Rotation</button>
+  <button data-t="leaders">Sector Leaders</button>
+  <button data-t="rs">Relative Strength</button>
+  <button data-t="ratio">Ratio Charts</button>
+  <button data-t="breadth">Market Breadth</button>
+  <button data-t="heatmap">Heatmap</button>
+  <button data-t="method">Methodology</button>
+</nav>
+<main>
+<div class="banner" id="banner"></div>
+
+<!-- ============ OVERVIEW ============ -->
+<section class="view" id="v-overview">
+  <div class="tiles" id="ovTiles"></div>
+  <div style="height:14px"></div>
+  <div class="grid2">
+    <div class="card"><div class="ch">Where sectors are in the rotation <span class="sub" id="ovRrgSub"></span><span class="spacer"></span><button class="btn sm" data-go="rrg">Open RRG →</button></div>
+      <div class="cb grid3" id="ovQuad" style="grid-template-columns:repeat(4,minmax(0,1fr))"></div></div>
+    <div class="card"><div class="ch">Rotation alerts <span class="sub">quadrant changes, weekly vs Nifty 50</span></div>
+      <div class="cb" id="ovAlerts"></div></div>
+  </div>
+  <div class="grid2e">
+    <div class="card"><div class="ch">Sector strength <span class="sub">3-month return relative to Nifty 50</span></div><div class="chart mid" id="ovSecBar"></div></div>
+    <div class="card"><div class="ch">Market breadth <span class="sub">% of NSE main-board stocks above their 50- and 200-day SMA</span><span class="spacer"></span><button class="btn sm" data-go="breadth">Breadth →</button></div><div class="chart mid" id="ovBreadth"></div></div>
+  </div>
+  <div class="grid2e">
+    <div class="card"><div class="ch">RS leaders <span class="sub">Nifty 500 stocks with RS Rating ≥ 90 and RS line at a 52-week high</span></div><div class="tablewrap" id="ovLeaders"></div></div>
+    <div class="card"><div class="ch">RS new high before price <span class="sub">RS line made a 52-week high in the last 5 sessions while price is still ≥ 3% below its own high</span></div><div class="tablewrap" id="ovBlue"></div></div>
+  </div>
+</section>
+
+<!-- ============ RRG ============ -->
+<section class="view" id="v-rrg">
+  <div class="controls">
+    <label class="f">Universe <select id="rrgUni"></select></label>
+    <label class="f" id="rrgIdxWrap">Index <select id="rrgIdx"></select></label>
+    <label class="f">Benchmark <select id="rrgBench"></select></label>
+    <div class="seg" id="rrgTf"><button data-v="D">Daily</button><button data-v="W" class="on">Weekly</button></div>
+    <label class="f">Tail <input type="range" id="rrgTail" min="1" max="30" value="10" style="width:90px"><b id="rrgTailV">10</b></label>
+    <label class="f" title="Smoothing window of RS-Ratio and RS-Momentum">Lookback <select id="rrgN"><option>5</option><option>8</option><option>10</option><option>14</option><option>20</option><option>26</option><option>30</option></select></label>
+    <label class="f">Labels <select id="rrgLbl"><option value="all">All</option><option value="auto">Avoid overlap</option><option value="none">None</option></select></label>
+    <button class="btn sm" id="rrgCustomBtn">Pick items…</button>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="ch"><span id="rrgTitle">Relative Rotation Graph</span><span class="spacer"></span>
+        <button class="btn sm" id="rrgPlay">▶ Play</button>
+        <input type="range" id="rrgDate" min="0" max="0" value="0" style="width:220px">
+        <b id="rrgDateV" class="sub"></b>
+        <button class="btn sm" id="rrgLatest">Latest</button></div>
+      <div class="chart tall" id="rrgChart"></div>
+      <div class="cb note" style="padding-top:0">Clockwise rotation: <span class="q I">Improving</span> → <span class="q L">Leading</span> → <span class="q W">Weakening</span> → <span class="q G">Lagging</span>. Axes centre on 100 = the benchmark. Dots mark each period of the tail; the big dot is the selected date. Click a name in the table to hide or show it.</div>
+    </div>
+    <div class="card"><div class="ch">Positions <span class="sub" id="rrgTblSub"></span></div><div class="tablewrap" id="rrgTable" style="max-height:640px"></div></div>
+  </div>
+</section>
+
+<!-- ============ SECTORS ============ -->
+<section class="view" id="v-sectors">
+  <div class="controls">
+    <label class="f">Indices <select id="secUni"><option value="core">Core sectors</option><option value="sector">All sectoral</option><option value="thematic">Thematic</option><option value="sector+thematic">Sectoral + thematic</option><option value="strategy">Strategy / factor</option><option value="broad">Broad market</option></select></label>
+    <label class="f">Benchmark <select id="secBench"></select></label>
+    <div class="seg" id="secMode"><button data-v="rel" class="on">Relative to benchmark</button><button data-v="abs">Absolute return</button></div>
+  </div>
+  <div class="card"><div class="ch">Sector leadership table <span class="sub">Rotation score = 0.2×1W + 0.3×1M + 0.3×3M + 0.2×6M relative return. Click a row to see its leaders.</span></div><div class="tablewrap free" id="secTable"></div></div>
+  <div class="grid2e">
+    <div class="card"><div class="ch">Rank history <span class="sub">weekly rotation-score rank, 1 = strongest</span></div><div class="chart" id="secRank" style="height:520px"></div></div>
+    <div class="card"><div class="ch">Relative-strength matrix <span class="sub">✓ = row index is outperforming column index (ratio above its <select id="secMxN" style="padding:1px 4px"><option value="20">20</option><option value="50" selected>50</option><option value="100">100</option></select>-day average)</span></div><div class="tablewrap free" id="secMatrix"></div></div>
+  </div>
+</section>
+
+<!-- ============ LEADERS ============ -->
+<section class="view" id="v-leaders">
+  <div class="controls">
+    <label class="f">Index <select id="ldIdx"></select></label>
+    <label class="f">Compare stocks with <select id="ldBench"><option value="self">the index itself</option></select></label>
+    <label class="f">Min RS rating <input type="number" id="ldMinRs" value="0" min="0" max="99" style="width:64px"></label>
+    <button class="btn sm" id="ldToRrg">Show as RRG →</button>
+  </div>
+  <div class="tiles" id="ldTiles"></div><div style="height:14px"></div>
+  <div class="grid2">
+    <div class="card"><div class="ch">Constituents <span class="sub" id="ldSub"></span></div><div class="tablewrap" id="ldTable"></div></div>
+    <div class="card"><div class="ch">3-month performance relative to the index</div><div class="chart" id="ldBar" style="height:600px"></div></div>
+  </div>
+</section>
+
+<!-- ============ RELATIVE STRENGTH ============ -->
+<section class="view" id="v-rs">
+  <div class="controls" style="flex-direction:column;align-items:stretch">
+    <div class="chips" id="rsPresets"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center">
+      <input type="search" id="rsQ" placeholder="Search symbol or name" style="width:190px">
+      <label class="f">Universe <select id="rsUni"></select></label>
+      <label class="f">Sector <select id="rsSec"><option value="">All</option></select></label>
+      <label class="f">RS ≥ <input type="number" id="rsMin" value="0" min="0" max="99" style="width:60px"></label>
+      <label class="f">Turnover ≥ ₹ <input type="number" id="rsVal" value="0" min="0" step="0.5" style="width:64px"> Cr</label>
+      <label class="f">Quadrant vs Nifty 500 <select id="rsQ500"><option value="">Any</option><option value="L">Leading</option><option value="I">Improving</option><option value="W">Weakening</option><option value="G">Lagging</option></select></label>
+      <label class="f">Stage <select id="rsStage"><option value="">Any</option><option value="2">2 – advancing</option><option value="1">1 – basing</option><option value="3">3 – topping</option><option value="4">4 – declining</option></select></label>
+      <label class="f">Trend template ≥ <select id="rsTT"><option value="0">any</option><option value="6">6/8</option><option value="7">7/8</option><option value="8">8/8</option></select></label>
+      <label class="check"><input type="checkbox" id="rsNH"> RS line at 52W high</label>
+      <label class="check"><input type="checkbox" id="rsBP"> RS high before price</label>
+      <label class="check"><input type="checkbox" id="rsMrs"> Mansfield &gt; 0</label>
+      <label class="check"><input type="checkbox" id="rsSme"> Include SME</label>
+      <span class="spacer"></span>
+      <b id="rsCount"></b>
+      <button class="btn sm" id="rsReset">Reset</button>
+      <button class="btn sm" id="rsCsv">Export CSV</button>
+    </div>
+  </div>
+  <div class="card"><div class="tablewrap" id="rsTable" style="max-height:calc(100vh - 290px)"></div></div>
+</section>
+
+<!-- ============ RATIO ============ -->
+<section class="view" id="v-ratio">
+  <div class="controls">
+    <label class="f">Compare <input type="text" id="raNum" list="instList" placeholder="type a stock or index" style="width:220px"></label>
+    <button class="btn sm" id="raAdd">＋ Add</button>
+    <label class="f">against <input type="text" id="raDen" list="instList" placeholder="index or stock (blank = price)" style="width:210px"></label>
+    <div class="seg" id="raRange"><button data-v="63">3M</button><button data-v="126">6M</button><button data-v="252" class="on">1Y</button><button data-v="504">2Y</button><button data-v="all">All</button></div>
+    <div class="seg" id="raMode"><button data-v="ratio" class="on">Ratio</button><button data-v="norm">Rebased to 100</button></div>
+    <label class="check"><input type="checkbox" id="raSma" checked> 50/200 SMA of ratio</label>
+  </div>
+  <div class="chips" id="raChips" style="margin:-4px 0 12px"></div>
+  <div class="chips" id="raPresets" style="margin:-4px 0 12px"></div>
+  <datalist id="instList"></datalist>
+  <div class="card"><div class="ch" id="raTitle">Ratio chart</div><div class="chart tall" id="raChart"></div></div>
+  <div class="card"><div class="ch">Ratio statistics</div><div class="tablewrap free" id="raStats"></div></div>
+</section>
+
+<!-- ============ BREADTH ============ -->
+<section class="view" id="v-breadth">
+  <div class="controls">
+    <label class="f">Universe <select id="brUni"></select></label>
+    <label class="f">Price panel <select id="brIdx"></select></label>
+    <div class="seg" id="brRange"><button data-v="126">6M</button><button data-v="252" class="on">1Y</button><button data-v="all">All</button></div>
+    <span class="note">Universes use today's index constituents for the whole history.</span>
+  </div>
+  <div class="tiles" id="brTiles"></div><div style="height:14px"></div>
+  <div class="grid2e" id="brGrid"></div>
+  <div class="card"><div class="ch">Sector participation <span class="sub">latest values per sector / thematic index; click a row to chart it</span></div><div class="tablewrap free" id="brSecTable"></div></div>
+</section>
+
+<!-- ============ HEATMAP ============ -->
+<section class="view" id="v-heatmap">
+  <div class="controls">
+    <label class="f">Universe <select id="hmUni"></select></label>
+    <label class="f">Colour by <select id="hmMetric"><option value="chg">1-day %</option><option value="r1w">1-week %</option><option value="r1m">1-month %</option><option value="r3m">3-month %</option><option value="r6m">6-month %</option><option value="rs">RS Rating</option><option value="mrs500">Mansfield RS</option></select></label>
+    <label class="f">Group by <select id="hmGroup"><option value="nse_ind">NSE industry</option><option value="sector">TradingView sector</option><option value="sec">Sector index</option></select></label>
+    <label class="f">Up/down colours <select id="hmColors"><option value="gr">Green / red</option><option value="br">Blue / red (colour-blind safe)</option></select></label>
+  </div>
+  <div class="card"><div class="chart" id="hmChart" style="height:calc(100vh - 220px);min-height:520px"></div></div>
+</section>
+
+<!-- ============ METHODOLOGY ============ -->
+<section class="view" id="v-method"><div class="card"><div class="cb method" id="methodBody"></div></div></section>
+</main>
+
+<!-- stock drawer -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer"><div class="dhead" id="dHead"></div><div class="dbody" id="dBody"></div></aside>
+<!-- modal (watchlists / item picker) -->
+<div class="modal" id="modal"><div class="mh"><b id="mTitle"></b><button class="x" id="mClose">×</button></div><div class="mb" id="mBody"></div></div>
+
+<script src="echarts.min.js"></script>
+<script>window.echarts || document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"><\/script>');</script>
+<script>
+"use strict";
+/* ============================================================ core utilities */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem("rot." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("rot." + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
+};
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const isNum = v => typeof v === "number" && isFinite(v);
+function fmt(v, d = 2) { return isNum(v) ? v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d }) : "–"; }
+function fmtPx(v) { return isNum(v) ? fmt(v, v >= 1000 ? 1 : 2) : "–"; }
+function pct(v, d = 1, sign = true) {
+  if (!isNum(v)) return '<span class="na">–</span>';
+  return `<span class="${v > 0 ? "pos" : v < 0 ? "neg" : ""}">${sign && v > 0 ? "+" : ""}${v.toFixed(d)}%</span>`;
+}
+function num(v, d = 1) { return isNum(v) ? v.toFixed(d) : '<span class="na">–</span>'; }
+const QN = { L: "Leading", W: "Weakening", G: "Lagging", I: "Improving" };
+const qChip = q => q ? `<span class="q ${q}">${QN[q]}</span>` : '<span class="na">–</span>';
+function quadOf(r, m) { if (!isNum(r) || !isNum(m)) return null; return r >= 100 ? (m >= 100 ? "L" : "W") : (m >= 100 ? "I" : "G"); }
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const SERIES_VARS = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"];
+const seriesColors = () => SERIES_VARS.map(css);
+function rsBadge(v) {
+  if (!isNum(v)) return '<span class="na">–</span>';
+  const a = Math.max(0, Math.min(1, (v - 50) / 49)), b = Math.max(0, Math.min(1, (50 - v) / 49));
+  const bg = v >= 50 ? `rgba(12,163,12,${0.10 + 0.32 * a})` : `rgba(208,59,59,${0.08 + 0.28 * b})`;
+  return `<span class="rsb" style="background:${bg}">${v}</span>`;
+}
+function debounce(fn, ms = 200) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+/* ============================================================ data model */
+let D = null, SER = null, BR = null;
+const loaded = { series: false, breadth: false };
+const waiters = { series: [], breadth: [] };
+
+function initData() {
+  D = window.ROT_DATA;
+  D.N = D.dates.length;
+  D.idxMap = {};
+  D.idx.codes.forEach((c, i) => { D.idxMap[c] = Object.assign({}, D.idx.meta[i], { c: D.idx.c[i] }); });
+  const cols = D.stocks.cols;
+  D.S = D.stocks.rows.map(r => { const o = {}; cols.forEach((c, i) => { o[c] = r[i]; }); return o; });
+  D.bySym = {}; D.S.forEach(s => { D.bySym[s.sym] = s; });
+  D.wk = weekLastRows(D.dates);
+  D.lists = LS.get("lists", {});
+}
+function weekLastRows(dates) {
+  const key = d => { const t = Date.parse(d + "T00:00:00Z") / 864e5; return t - ((t + 3) % 7 + 7) % 7; };
+  const out = [];
+  for (let i = 0; i < dates.length; i++) if (i === dates.length - 1 || key(dates[i + 1]) !== key(dates[i])) out.push(i);
+  return out;
+}
+function idxLabel(code) { return D.idxMap[code] ? D.idxMap[code].label : code; }
+function idxByCat(cat) { return D.idx.codes.filter(c => D.idxMap[c].cat === cat); }
+function hasIdx(code) { return !!D.idxMap[code]; }
+const defaultBench = () => hasIdx("NIFTY50") ? "NIFTY50" : D.idx.codes[0];
+
+const serCache = {};
+function seriesOf(id) {           // full-length array aligned with D.dates (null where unknown)
+  if (!id) return null;
+  if (id.startsWith("I:")) { const m = D.idxMap[id.slice(2)]; return m ? m.c : null; }
+  const sym = id.slice(2);
+  if (serCache[sym]) return serCache[sym];
+  if (!SER) return null;
+  const k = SER.pos[sym]; if (k == null) return null;
+  const arr = new Array(SER.start).fill(null).concat(SER.c[k]);
+  serCache[sym] = arr; return arr;
+}
+function idName(id) { return id.startsWith("I:") ? idxLabel(id.slice(2)) : id.slice(2); }
+function hasSeries(id) { return id.startsWith("I:") ? hasIdx(id.slice(2)) : !!(SER && SER.pos[id.slice(2)] != null); }
+
+function loadScript(name, key, varName) {
+  const sc = document.createElement("script");
+  sc.src = name + "?v=" + Math.floor(Date.now() / 300000);
+  sc.onload = () => {
+    if (key === "series") { SER = window[varName]; SER.pos = {}; SER.syms.forEach((s, i) => { SER.pos[s] = i; }); }
+    if (key === "breadth") { BR = window[varName]; BR.map = {}; BR.universes.forEach(u => { BR.map[u.code] = u; }); }
+    loaded[key] = true; waiters[key].splice(0).forEach(f => f());
+  };
+  sc.onerror = () => { $("#banner").textContent = `Could not load ${name}. Run the GitHub workflow once, then reload.`; };
+  document.body.appendChild(sc);
+}
+function whenLoaded(key, fn) { if (loaded[key]) fn(); else waiters[key].push(fn); }
+
+/* simple numeric helpers on arrays */
+function sma(a, n) { const o = new Array(a.length).fill(null); let s = 0, c = 0; for (let i = 0; i < a.length; i++) { const v = a[i]; if (isNum(v)) { s += v; c++; } if (i >= n) { const u = a[i - n]; if (isNum(u)) { s -= u; c--; } } if (i >= n - 1 && c === n) o[i] = s / n; } return o; }
+function ema(a, alpha) { const o = new Array(a.length).fill(null); let p = null; for (let i = 0; i < a.length; i++) { const v = a[i]; if (!isNum(v)) { o[i] = p; continue; } p = p == null ? v : p + alpha * (v - p); o[i] = p; } return o; }
+function wmaArr(a, n) { const o = new Array(a.length).fill(null), den = n * (n + 1) / 2; for (let t = n - 1; t < a.length; t++) { let s = 0, ok = true; for (let i = 0; i < n; i++) { const v = a[t - i]; if (!isNum(v)) { ok = false; break; } s += (n - i) * v; } if (ok) o[t] = s / den; } return o; }
+function ratioArr(p, b) { if (!p) return []; if (!b) return p.map(() => null); return p.map((v, i) => (isNum(v) && isNum(b[i]) && b[i] !== 0) ? v / b[i] : null); }
+/* JdK-style RS-Ratio / RS-Momentum, identical to scripts/build_rotation.py rrg() */
+function rrgCalc(p, b, n) {
+  const rs = ratioArr(p, b), w = wmaArr(rs, n);
+  const base = rs.map((v, i) => (isNum(v) && isNum(w[i])) ? v / w[i] : null);
+  const ratio = wmaArr(base, n).map(v => isNum(v) ? 100 * v : null);
+  const wr = wmaArr(ratio, n);
+  const mom = ratio.map((v, i) => (isNum(v) && isNum(wr[i])) ? 100 * v / wr[i] : null);
+  return { ratio, mom };
+}
+function pick(a, rows) { return rows.map(i => a[i]); }
+function retK(a, k, end = a.length - 1) { const x = a[end], y = a[end - k]; return (isNum(x) && isNum(y) && y) ? (x / y - 1) * 100 : null; }
+function relRet(a, b, k, end) { const r = retK(a, k, end), rb = retK(b, k, end); return (isNum(r) && isNum(rb)) ? ((1 + r / 100) / (1 + rb / 100) - 1) * 100 : null; }
+
+/* ============================================================ charts */
+const charts = {};
+function chart(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  if (charts[id] && charts[id].getDom() !== el) { charts[id].dispose(); delete charts[id]; }
+  if (!charts[id]) charts[id] = echarts.init(el, null, { renderer: "canvas" });
+  return charts[id];
+}
+function disposeCharts() { Object.keys(charts).forEach(k => { charts[k].dispose(); delete charts[k]; }); }
+window.addEventListener("resize", debounce(() => Object.values(charts).forEach(c => c.resize()), 150));
+function base() {   // shared chart chrome from the colour tokens
+  const t = { text: css("--c-text"), text2: css("--c-text2"), muted: css("--c-muted"), grid: css("--c-grid"), axis: css("--c-axis"), surface: css("--c-surface") };
+  return {
+    t,
+    textStyle: { fontFamily: getComputedStyle(document.body).fontFamily, color: t.text2 },
+    axis: (o = {}) => Object.assign({
+      axisLine: { lineStyle: { color: t.axis } }, axisTick: { show: false },
+      axisLabel: { color: t.muted, fontSize: 11 }, splitLine: { lineStyle: { color: t.grid } },
+      nameTextStyle: { color: t.muted, fontSize: 11 },
+    }, o),
+    tooltip: (o = {}) => Object.assign({
+      backgroundColor: t.surface, borderColor: t.grid, textStyle: { color: t.text, fontSize: 12 },
+      extraCssText: "box-shadow:0 4px 14px rgba(0,0,0,.15);border-radius:8px;",
+    }, o),
+    legend: (o = {}) => Object.assign({ textStyle: { color: t.text2, fontSize: 12 }, icon: "roundRect", itemWidth: 12, itemHeight: 4 }, o),
+  };
+}
+function dateFmt(d) { const [y, m, dd] = d.split("-"); return `${+dd} ${"JanFebMarAprMayJunJulAugSepOctNovDec".substr((+m - 1) * 3, 3)} ${y.slice(2)}`; }
+
+/* generic sortable table */
+function table(el, cols, rows, opt = {}) {
+  const st = opt.state || { key: opt.sortKey, dir: opt.sortDir || -1 };
+  const limit = opt.limit || 1e9;
+  let shown = Math.min(limit, rows.length);
+  const sorted = () => {
+    if (!st.key) return rows;
+    const c = cols.find(c => c.k === st.key); if (!c) return rows;
+    const val = c.sv || (r => r[c.k]);
+    return rows.slice().sort((a, b) => {
+      const x = val(a), y = val(b);
+      const xn = x == null || (typeof x === "number" && !isFinite(x)), yn = y == null || (typeof y === "number" && !isFinite(y));
+      if (xn && yn) return 0; if (xn) return 1; if (yn) return -1;
+      return (typeof x === "string" ? x.localeCompare(y) : x - y) * st.dir;
+    });
+  };
+  const draw = () => {
+    const data = sorted();
+    const head = "<tr>" + cols.map(c => `<th class="${c.cls || ""} ${c.nosort ? "" : "s"} ${st.key === c.k ? "sorted" : ""}" data-k="${c.k}" title="${esc(c.title || "")}">${c.label}${st.key === c.k ? (st.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr>";
+    const body = data.slice(0, shown).map((r, i) => `<tr class="${opt.onRow ? "click" : ""} ${opt.rowCls ? opt.rowCls(r) : ""}" data-i="${rows.indexOf(r)}">` +
+      cols.map(c => `<td class="${c.cls || ""}">${c.f ? c.f(r) : esc(r[c.k])}</td>`).join("") + "</tr>").join("");
+    el.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>` +
+      (data.length > shown ? `<div class="more"><button class="btn sm" data-more>Show ${Math.min(limit, data.length - shown)} more (${data.length - shown} hidden)</button></div>` : "") +
+      (!data.length ? `<div class="empty">${opt.empty || "Nothing matches."}</div>` : "");
+    $$("th.s", el).forEach(th => th.onclick = () => {
+      const k = th.dataset.k; if (st.key === k) st.dir = -st.dir; else { st.key = k; st.dir = (cols.find(c => c.k === k).asc ? 1 : -1); }
+      if (opt.onSort) opt.onSort(st); draw();
+    });
+    const mb = $("[data-more]", el); if (mb) mb.onclick = () => { shown += limit; draw(); };
+    if (opt.onRow) $$("tbody tr", el).forEach(tr => tr.onclick = (e) => opt.onRow(rows[+tr.dataset.i], e));
+  };
+  draw();
+  return { sorted, state: st };
+}
+
+/* ============================================================ app shell */
+const App = { tab: null, rendered: {}, renderers: {} };
+function setTab(t, push = true) {
+  if (!App.renderers[t]) t = "overview";
+  App.tab = t;
+  $$("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  $$(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + t));
+  if (push) history.replaceState(null, "", "#" + t);
+  LS.set("tab", t);
+  if (!D.idx.codes.length && ["overview", "rrg", "sectors", "leaders", "ratio"].includes(t)) {
+    $("#v-" + t).innerHTML = '<div class="card"><div class="empty">NSE index data has not been downloaded yet. It arrives with the next workflow run; the Relative Strength, Breadth and Heatmap tabs already work.</div></div>';
+    return;
+  }
+  if (!App.rendered[t]) { App.rendered[t] = true; App.renderers[t](); }
+  setTimeout(() => Object.values(charts).forEach(c => { if (c.getDom().offsetParent) c.resize(); }), 30);
+}
+function rerenderAll() { disposeCharts(); App.rendered = {}; App.rendered[App.tab] = true; App.renderers[App.tab](); }
+
+function statusBar() {
+  const m = D.meta, p = [];
+  p.push(`<span class="pill">NSE close <b>${dateFmt(m.nse_date)}</b></span>`);
+  if (m.live) p.push(`<span class="pill live">Live ${dateFmt(m.live.date)} <b>${m.live.time}</b> · ~15 min delayed</span>`);
+  if (m.live_indices && m.live_indices.estimated && m.live_indices.estimated.length)
+    p.push(`<span class="pill warn opt" title="${esc(m.live_indices.estimated.join(", "))}">${m.live_indices.estimated.length} index values estimated</span>`);
+  p.push(`<span class="pill opt">${m.indices} indices · ${m.stocks.toLocaleString("en-IN")} stocks</span>`);
+  p.push(`<span class="pill opt">Updated ${esc(m.generated)}</span>`);
+  $("#status").innerHTML = p.join("");
+  const ageDays = (Date.now() - Date.parse(m.latest + "T16:00:00+05:30")) / 864e5;
+  if (ageDays > 5) $("#banner").textContent = `Data is from ${dateFmt(m.latest)}. The GitHub workflow may have stopped – open the repo's Actions tab to check.`;
+}
+
+/* ---- universes */
+function stockUniverseOptions(withAll = true) {
+  const o = [];
+  if (withAll) o.push({ v: "ALL", l: "All NSE stocks" });
+  [["NIFTY50", "Nifty 50"], ["NIFTYNEXT50", "Nifty Next 50"], ["NIFTY100", "Nifty 100"], ["NIFTY200", "Nifty 200"], ["NIFTY500", "Nifty 500"],
+   ["NIFTYMIDCAP150", "Nifty Midcap 150"], ["NIFTYSMALLCAP250", "Nifty Smallcap 250"], ["NIFTYMICROCAP250", "Nifty Microcap 250"]]
+    .forEach(([c, l]) => { if (D.members[c]) o.push({ v: c, l }); });
+  o.push({ v: "FO", l: "F&O stocks" });
+  const grp = { sector: "Sector", thematic: "Theme", strategy: "Strategy", broad: "Index" };
+  D.idx.codes.filter(c => D.members[c] && D.members[c].length && !o.find(x => x.v === c))
+    .sort((a, b) => (D.idxMap[a].cat === "sector" ? 0 : 1) - (D.idxMap[b].cat === "sector" ? 0 : 1) || idxLabel(a).localeCompare(idxLabel(b)))
+    .forEach(c => o.push({ v: c, l: `${grp[D.idxMap[c].cat] || "Index"}: ${idxLabel(c)}${D.member_src[c] === "approx" ? " (approx.)" : ""}` }));
+  Object.keys(D.lists).forEach(n => o.push({ v: "WL:" + n, l: "★ " + n }));
+  return o;
+}
+function universeSyms(v) {
+  if (!v || v === "ALL") return D.S.map(s => s.sym);
+  if (v === "FO") return D.S.filter(s => s.fo).map(s => s.sym);
+  if (v.startsWith("WL:")) return (D.lists[v.slice(3)] || []).filter(id => id.startsWith("S:")).map(id => id.slice(2));
+  return D.members[v] || [];
+}
+function fillSelect(sel, opts, value) {
+  sel.innerHTML = opts.map(o => o.group ? `<optgroup label="${esc(o.group)}">` + o.items.map(i => `<option value="${esc(i.v)}">${esc(i.l)}</option>`).join("") + "</optgroup>"
+    : `<option value="${esc(o.v)}">${esc(o.l)}</option>`).join("");
+  if (value != null && [...sel.options].some(x => x.value === value)) sel.value = value;
+}
+function indexOptions(cats = ["broad", "sector", "thematic", "strategy"]) {
+  const names = { broad: "Broad market", sector: "Sectoral", thematic: "Thematic", strategy: "Strategy / factor" };
+  return cats.map(c => ({ group: names[c], items: idxByCat(c).map(code => ({ v: code, l: idxLabel(code) })) })).filter(g => g.items.length);
+}
+function instrumentList() {
+  const opts = D.idx.codes.filter(c => D.idxMap[c].cat !== "vix").map(c => `<option value="${esc(idxLabel(c))} (index)">`);
+  if (SER) SER.syms.forEach(s => { const o = D.bySym[s]; opts.push(`<option value="${esc(s)}">${esc(o ? o.name : "")}</option>`); });
+  $("#instList").innerHTML = opts.join("");
+}
+function parseInstrument(txt) {
+  txt = (txt || "").trim(); if (!txt) return null;
+  const m = txt.match(/^(.*) \(index\)$/);
+  if (m) { const c = D.idx.codes.find(c => idxLabel(c) === m[1]); return c ? "I:" + c : null; }
+  const c = D.idx.codes.find(c => idxLabel(c).toLowerCase() === txt.toLowerCase() || c === txt.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+  if (c) return "I:" + c;
+  const s = txt.toUpperCase();
+  return D.bySym[s] ? "S:" + s : null;
+}
+
+/* ---- modal */
+function openModal(title, html, onOpen) { $("#mTitle").textContent = title; $("#mBody").innerHTML = html; $("#modal").classList.add("open"); $("#overlay").classList.add("open"); if (onOpen) onOpen($("#mBody")); }
+function closeModal() { $("#modal").classList.remove("open"); if (!$("#drawer").classList.contains("open")) $("#overlay").classList.remove("open"); }
+$("#mClose").onclick = closeModal;
+$("#overlay").onclick = () => { closeModal(); closeDrawer(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal(); closeDrawer(); } });
+
+/* ---- watchlists (stored in this browser only) */
+function openLists() {
+  const render = () => {
+    const names = Object.keys(D.lists);
+    openModal("Watchlists", `
+      <p class="note">A watchlist can hold NSE stock symbols and index names. Use it as a universe in the RRG, Relative Strength, Heatmap and Ratio tabs. Lists are saved in this browser only.</p>
+      <div style="display:flex;gap:8px;margin:10px 0"><input type="text" id="wlNew" placeholder="New list name" style="flex:1"><button class="btn primary" id="wlAdd">Create</button></div>
+      ${names.length ? names.map(n => `<div class="card" style="margin:10px 0"><div class="ch">★ ${esc(n)}<span class="spacer"></span><button class="btn sm" data-del="${esc(n)}">Delete</button></div>
+        <div class="cb"><textarea data-wl="${esc(n)}" rows="3" style="width:100%" placeholder="e.g. TCS, INFY, HDFCBANK, Nifty IT">${esc((D.lists[n] || []).map(id => id.startsWith("I:") ? idxLabel(id.slice(2)) + " (index)" : id.slice(2)).join(", "))}</textarea>
+        <div class="sub" data-msg="${esc(n)}"></div><button class="btn sm" data-save="${esc(n)}" style="margin-top:6px">Save</button></div></div>`).join("")
+        : '<div class="empty">No watchlists yet.</div>'}`, body => {
+      $("#wlAdd", body).onclick = () => { const n = $("#wlNew", body).value.trim(); if (n && !D.lists[n]) { D.lists[n] = []; LS.set("lists", D.lists); render(); } };
+      $$("[data-del]", body).forEach(b => b.onclick = () => { delete D.lists[b.dataset.del]; LS.set("lists", D.lists); render(); refreshUniverseSelects(); });
+      $$("[data-save]", body).forEach(b => b.onclick = () => {
+        const n = b.dataset.save, txt = $(`textarea[data-wl="${CSS.escape(n)}"]`, body).value;
+        const ids = [], bad = [];
+        txt.split(/[,\n;]+/).map(s => s.trim()).filter(Boolean).forEach(t => { const id = parseInstrument(t); if (id) { if (!ids.includes(id)) ids.push(id); } else bad.push(t); });
+        D.lists[n] = ids; LS.set("lists", D.lists);
+        $(`[data-msg="${CSS.escape(n)}"]`, body).textContent = `Saved ${ids.length} item(s).` + (bad.length ? ` Not found: ${bad.join(", ")}` : "");
+        refreshUniverseSelects();
+      });
+    });
+  };
+  render();
+}
+function refreshUniverseSelects() { App.rendered = { [App.tab]: true }; disposeCharts(); App.renderers[App.tab](); }
+
+/* ============================================================ RRG */
+const RRG = {
+  s: Object.assign({ uni: "core", idx: "NIFTYBANK", bench: null, tf: "W", tail: 10, nW: 10, nD: 20, lbl: "auto", hidden: [], custom: [] }, LS.get("rrg", {})),
+  frame: null, timer: null, data: null, lock: null,
+};
+function rrgSave() { LS.set("rrg", RRG.s); }
+function rrgItems() {
+  const s = RRG.s;
+  let ids = [];
+  if (s.uni === "core") ids = D.meta.core.map(c => "I:" + c);
+  else if (["sector", "thematic", "broad", "strategy"].includes(s.uni)) ids = idxByCat(s.uni).map(c => "I:" + c);
+  else if (s.uni === "members") ids = (D.members[s.idx] || []).map(x => "S:" + x);
+  else if (s.uni === "custom") ids = s.custom.slice();
+  else if (s.uni.startsWith("WL:")) ids = (D.lists[s.uni.slice(3)] || []).slice();
+  return ids.filter(id => id !== "I:" + s.bench);
+}
+function rrgCompute() {
+  const s = RRG.s, frames = s.tf === "W" ? D.wk : D.dates.map((_, i) => i);
+  const n = s.tf === "W" ? s.nW : s.nD;
+  const b = seriesOf("I:" + s.bench);
+  const items = [];
+  rrgItems().forEach(id => {
+    const p = seriesOf(id);
+    if (!p || !b) return;
+    const { ratio, mom } = rrgCalc(pick(p, frames), pick(b, frames), n);
+    items.push({ id, name: idName(id), ratio, mom });
+  });
+  let first = frames.length, last = -1;
+  items.forEach(it => it.ratio.forEach((v, i) => { if (isNum(v) && isNum(it.mom[i])) { first = Math.min(first, i); last = Math.max(last, i); } }));
+  RRG.data = { frames, items, first, last, n };
+}
+function rrgExtent(items, f0, f1) {
+  let dx = 0.8, dy = 0.5;
+  items.forEach(it => { for (let i = Math.max(0, f0); i <= f1; i++) { const r = it.ratio[i], m = it.mom[i]; if (isNum(r) && isNum(m)) { dx = Math.max(dx, Math.abs(r - 100)); dy = Math.max(dy, Math.abs(m - 100)); } } });
+  dx = Math.ceil(dx * 1.1 * 4) / 4; dy = Math.ceil(dy * 1.12 * 4) / 4;
+  return { x0: 100 - dx, x1: 100 + dx, y0: 100 - dy, y1: 100 + dy };
+}
+function rrgDraw() {
+  const s = RRG.s, d = RRG.data, B = base();
+  const c = chart("rrgChart");
+  if (!d || d.last < 0) { c.clear(); $("#rrgTable").innerHTML = '<div class="empty">Not enough history for these settings. Try a shorter lookback or the weekly view.</div>'; return; }
+  const f = Math.min(Math.max(RRG.frame == null ? d.last : RRG.frame, d.first), d.last);
+  RRG.frame = f;
+  $("#rrgDate").min = d.first; $("#rrgDate").max = d.last; $("#rrgDate").value = f;
+  $("#rrgDateV").textContent = (s.tf === "W" ? "week to " : "") + dateFmt(D.dates[d.frames[f]]);
+  const tail = s.tail, f0 = f - tail + 1;
+  const vis = d.items.filter(it => !s.hidden.includes(it.id));
+  const ext = RRG.lock || rrgExtent(vis, f0, f);
+  const qc = { L: css("--q-lead"), W: css("--q-weak"), G: css("--q-lag"), I: css("--q-imp") };
+  const series = [{
+    type: "scatter", data: [], silent: true,
+    markArea: { silent: true, itemStyle: { opacity: 1 }, label: { fontWeight: 700, fontSize: 13 }, data: [
+      [{ xAxis: 100, yAxis: 100, itemStyle: { color: css("--q-lead-bg") }, label: { position: "insideTopRight", color: qc.L, formatter: "Leading" } }, { xAxis: ext.x1, yAxis: ext.y1 }],
+      [{ xAxis: 100, yAxis: ext.y0, itemStyle: { color: css("--q-weak-bg") }, label: { position: "insideBottomRight", color: qc.W, formatter: "Weakening" } }, { xAxis: ext.x1, yAxis: 100 }],
+      [{ xAxis: ext.x0, yAxis: ext.y0, itemStyle: { color: css("--q-lag-bg") }, label: { position: "insideBottomLeft", color: qc.G, formatter: "Lagging" } }, { xAxis: 100, yAxis: 100 }],
+      [{ xAxis: ext.x0, yAxis: 100, itemStyle: { color: css("--q-imp-bg") }, label: { position: "insideTopLeft", color: qc.I, formatter: "Improving" } }, { xAxis: 100, yAxis: ext.y1 }],
+    ] },
+    markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: B.t.axis, type: "solid", width: 1 }, data: [{ xAxis: 100 }, { yAxis: 100 }] },
+  }];
+  const rows = [];
+  vis.forEach(it => {
+    const pts = [];
+    for (let i = Math.max(0, f0); i <= f; i++) if (isNum(it.ratio[i]) && isNum(it.mom[i])) pts.push([it.ratio[i], it.mom[i], i]);
+    if (!pts.length || pts[pts.length - 1][2] !== f) return;
+    const q = quadOf(it.ratio[f], it.mom[f]), col = qc[q];
+    series.push({
+      type: "line", name: it.name, id: it.id, z: 3, symbol: "circle", showSymbol: true, smooth: false,
+      lineStyle: { width: 1.6, color: col, opacity: 0.85 }, itemStyle: { color: col, borderColor: B.t.surface, borderWidth: 1 },
+      emphasis: { focus: "series", lineStyle: { width: 2.6 } },
+      labelLayout: s.lbl === "auto" ? { hideOverlap: true } : undefined,
+      data: pts.map((p, k) => ({
+        value: p, symbolSize: k === pts.length - 1 ? 10 : 4,
+        label: { show: s.lbl !== "none" && k === pts.length - 1, position: "right", formatter: it.name, color: B.t.text, fontSize: 11, fontWeight: 600 },
+      })),
+    });
+    const r = it.ratio[f], m = it.mom[f], pr = it.ratio[f - 1], pm = it.mom[f - 1];
+    let since = 0; for (let i = f; i >= 0 && quadOf(it.ratio[i], it.mom[i]) === q; i--) since++;
+    const heading = isNum(pr) ? (Math.atan2(m - pm, r - pr) * 180 / Math.PI + 360) % 360 : null;
+    rows.push({ id: it.id, name: it.name, q, r, m, heading, dist: Math.hypot(r - 100, m - 100), since, prevQ: quadOf(pr, pm), col });
+  });
+  c.setOption({
+    animation: !RRG.timer, animationDurationUpdate: 250, textStyle: B.textStyle,
+    grid: { left: 56, right: 40, top: 20, bottom: 50 },
+    xAxis: B.axis({ type: "value", name: "JdK RS-Ratio  →  stronger relative trend", nameLocation: "middle", nameGap: 30, min: +ext.x0.toFixed(2), max: +ext.x1.toFixed(2), scale: true, splitLine: { show: false }, axisLabel: { color: B.t.muted, fontSize: 11, formatter: v => v.toFixed(1), showMinLabel: false, showMaxLabel: false } }),
+    yAxis: B.axis({ type: "value", name: "JdK RS-Momentum", nameLocation: "middle", nameGap: 40, min: +ext.y0.toFixed(2), max: +ext.y1.toFixed(2), scale: true, splitLine: { show: false }, axisLabel: { color: B.t.muted, fontSize: 11, formatter: v => v.toFixed(1), showMinLabel: false, showMaxLabel: false } }),
+    tooltip: B.tooltip({ trigger: "item", formatter: p => {
+      if (!p.value || p.seriesType !== "line") return "";
+      const [r, m, i] = p.value, q = quadOf(r, m);
+      return `<b>${esc(p.seriesName)}</b><br>${dateFmt(D.dates[d.frames[i]])}<br>RS-Ratio <b>${r.toFixed(2)}</b> · RS-Momentum <b>${m.toFixed(2)}</b><br>${QN[q]}`;
+    } }),
+    series,
+  }, true);
+  // positions table
+  const hiddenRows = d.items.filter(it => s.hidden.includes(it.id)).map(it => ({ id: it.id, name: it.name, hidden: true }));
+  $("#rrgTblSub").textContent = `${rows.length} shown · vs ${idxLabel(s.bench)} · ${s.tf === "W" ? "weekly" : "daily"}, lookback ${d.n}`;
+  const per = s.tf === "W" ? "wk" : "d";
+  table($("#rrgTable"), [
+    { k: "name", label: "Name", cls: "l", asc: true, f: r => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${r.hidden ? "transparent" : r.col};border:1px solid ${r.hidden ? "var(--muted)" : r.col};margin-right:6px"></span>${r.id.startsWith("S:") ? `<a href="#" data-sym="${esc(r.id.slice(2))}" class="symb">${esc(r.name)}</a>` : `<span class="symb">${esc(r.name)}</span>`}` },
+    { k: "q", label: "Quadrant", cls: "l", sv: r => r.hidden ? null : "IGWL".indexOf(r.q) * 1000 + (r.r || 0), f: r => r.hidden ? '<span class="na">hidden</span>' : qChip(r.q) + (r.prevQ && r.prevQ !== r.q ? `<span class="flag" title="changed this period from ${QN[r.prevQ]}">new</span>` : "") },
+    { k: "r", label: "RS-Ratio", f: r => num(r.r, 2) },
+    { k: "m", label: "RS-Mom", f: r => num(r.m, 2) },
+    { k: "heading", label: "Heading", title: "Direction of the last move: 0–90° (north-east) is the strongest, 180–270° the weakest", f: r => isNum(r.heading) ? `<span style="display:inline-block;transform:rotate(${-r.heading}deg)">➜</span> ${Math.round(r.heading)}°` : "–" },
+    { k: "dist", label: "Distance", title: "Distance from the centre (100,100): larger = stronger trend relative to the benchmark", f: r => num(r.dist, 2) },
+    { k: "since", label: "In quadrant", f: r => r.hidden ? "" : `${r.since} ${per}` },
+  ], rows.concat(hiddenRows), {
+    state: RRG.tblState || (RRG.tblState = { key: "q", dir: -1 }),
+    onRow: (r, e) => {
+      if (e.target.dataset.sym) { e.preventDefault(); openStock(e.target.dataset.sym); return; }
+      const h = RRG.s.hidden, k = h.indexOf(r.id); if (k >= 0) h.splice(k, 1); else h.push(r.id); rrgSave(); rrgDraw();
+    },
+  });
+  $$("#rrgTable tbody tr").forEach(tr => {
+    tr.onmouseenter = () => { const r = rows.concat(hiddenRows)[+tr.dataset.i]; if (r && !r.hidden) c.dispatchAction({ type: "highlight", seriesName: r.name }); };
+    tr.onmouseleave = () => c.dispatchAction({ type: "downplay" });
+  });
+}
+function rrgRender() {
+  const s = RRG.s;
+  if (!s.bench || !hasIdx(s.bench)) s.bench = defaultBench();
+  const uniOpts = [{ v: "core", l: `Core sectors (${D.meta.core.length})` }, { v: "sector", l: "All sectoral indices" }, { v: "thematic", l: "Thematic indices" },
+    { v: "broad", l: "Broad market (size)" }, { v: "strategy", l: "Strategy / factor indices" }, { v: "members", l: "Stocks in an index…" }, { v: "custom", l: "Custom selection" }]
+    .concat(Object.keys(D.lists).map(n => ({ v: "WL:" + n, l: "★ " + n })));
+  fillSelect($("#rrgUni"), uniOpts, s.uni);
+  fillSelect($("#rrgIdx"), indexOptions().map(g => ({ group: g.group, items: g.items.filter(i => (D.members[i.v] || []).length) })).filter(g => g.items.length), s.idx);
+  fillSelect($("#rrgBench"), indexOptions(), s.bench);
+  $("#rrgIdxWrap").style.display = s.uni === "members" ? "" : "none";
+  $$("#rrgTf button").forEach(b => b.classList.toggle("on", b.dataset.v === s.tf));
+  $("#rrgTail").value = s.tail; $("#rrgTailV").textContent = s.tail;
+  $("#rrgN").value = s.tf === "W" ? s.nW : s.nD; $("#rrgLbl").value = s.lbl;
+  $("#rrgCustomBtn").style.display = s.uni === "custom" ? "" : "none";
+  $("#rrgTitle").textContent = s.uni === "members" ? `Stocks in ${idxLabel(s.idx)} vs ${idxLabel(s.bench)}` : `Relative Rotation Graph vs ${idxLabel(s.bench)}`;
+  const needSeries = rrgItems().some(id => id.startsWith("S:"));
+  if (needSeries && !loaded.series) { chart("rrgChart").clear(); $("#rrgTable").innerHTML = '<div class="loading">Loading stock history…</div>'; whenLoaded("series", rrgRender); return; }
+  if (s.uni === "custom" && !s.custom.length) { chart("rrgChart").clear(); $("#rrgTable").innerHTML = '<div class="empty">Click “Pick items…” to choose indices and stocks.</div>'; return; }
+  rrgCompute(); RRG.frame = null; rrgDraw();
+}
+function rrgPicker() {
+  const s = RRG.s, sel = new Set(s.custom);
+  openModal("Pick RRG items", `
+    <p class="note">Choose indices, and/or type stock symbols separated by commas.</p>
+    ${indexOptions().map(g => `<h4 style="margin:12px 0 6px">${g.group}</h4><div class="chips">${g.items.map(i => `<label class="chip"><input type="checkbox" value="I:${i.v}" ${sel.has("I:" + i.v) ? "checked" : ""}> ${esc(i.l)}</label>`).join("")}</div>`).join("")}
+    <h4 style="margin:14px 0 6px">Stocks</h4><input type="text" id="pkStocks" style="width:100%" value="${esc(s.custom.filter(x => x.startsWith("S:")).map(x => x.slice(2)).join(", "))}">
+    <div style="margin-top:14px"><button class="btn primary" id="pkOk">Apply</button></div>`, body => {
+    $("#pkOk", body).onclick = () => {
+      const ids = $$("input[type=checkbox]:checked", body).map(x => x.value);
+      $("#pkStocks", body).value.split(/[,\s]+/).map(x => x.trim().toUpperCase()).filter(x => D.bySym[x]).forEach(x => ids.push("S:" + x));
+      s.custom = ids; rrgSave(); closeModal(); rrgRender();
+    };
+  });
+}
+function rrgStop() { if (RRG.timer) { clearInterval(RRG.timer); RRG.timer = null; RRG.lock = null; $("#rrgPlay").textContent = "▶ Play"; } }
+App.renderers.rrg = function () {
+  rrgRender();
+  if (RRG.bound) return; RRG.bound = true;
+  const s = RRG.s;
+  $("#rrgUni").onchange = e => { rrgStop(); s.uni = e.target.value; if (s.uni === "members") s.bench = s.idx; rrgSave(); rrgRender(); };
+  $("#rrgIdx").onchange = e => { rrgStop(); s.idx = e.target.value; s.bench = s.idx; rrgSave(); rrgRender(); };
+  $("#rrgBench").onchange = e => { rrgStop(); s.bench = e.target.value; rrgSave(); rrgRender(); };
+  $$("#rrgTf button").forEach(b => b.onclick = () => { rrgStop(); s.tf = b.dataset.v; rrgSave(); rrgRender(); });
+  $("#rrgTail").oninput = e => { s.tail = +e.target.value; $("#rrgTailV").textContent = s.tail; rrgSave(); rrgDraw(); };
+  $("#rrgN").onchange = e => { if (s.tf === "W") s.nW = +e.target.value; else s.nD = +e.target.value; rrgSave(); rrgRender(); };
+  $("#rrgLbl").onchange = e => { s.lbl = e.target.value; rrgSave(); rrgDraw(); };
+  $("#rrgCustomBtn").onclick = rrgPicker;
+  $("#rrgDate").oninput = e => { rrgStop(); RRG.frame = +e.target.value; rrgDraw(); };
+  $("#rrgLatest").onclick = () => { rrgStop(); RRG.frame = null; rrgDraw(); };
+  $("#rrgPlay").onclick = () => {
+    if (RRG.timer) { rrgStop(); return; }
+    const d = RRG.data; if (!d || d.last < 0) return;
+    if (RRG.frame >= d.last) RRG.frame = Math.max(d.first, d.last - 40);
+    RRG.lock = rrgExtent(d.items.filter(it => !s.hidden.includes(it.id)), Math.max(d.first, RRG.frame - s.tail), d.last);
+    $("#rrgPlay").textContent = "❚❚ Pause";
+    RRG.timer = setInterval(() => { if (RRG.frame >= d.last) { rrgStop(); rrgDraw(); return; } RRG.frame++; rrgDraw(); }, s.tf === "W" ? 650 : 280);
+  };
+};
+
+/* ============================================================ shared index analytics */
+function quadSeries(id, benchId, tf, n) {
+  const p = seriesOf(id), b = seriesOf(benchId); if (!p || !b) return null;
+  const frames = tf === "W" ? D.wk : D.dates.map((_, i) => i);
+  const r = rrgCalc(pick(p, frames), pick(b, frames), n);
+  const L = frames.length - 1;
+  return { q: quadOf(r.ratio[L], r.mom[L]), qp: quadOf(r.ratio[L - 1], r.mom[L - 1]), r: r.ratio[L], m: r.mom[L], ratio: r.ratio, mom: r.mom, frames };
+}
+function rotScore(c, b, end) {
+  const parts = [[5, 0.2], [21, 0.3], [63, 0.3], [126, 0.2]];
+  let s = 0, w = 0;
+  parts.forEach(([k, wt]) => { const v = relRet(c, b, k, end); if (isNum(v)) { s += v * wt; w += wt; } });
+  return w >= 0.5 ? s / w : null;
+}
+function ranksAt(codes, bench, end) {
+  const b = seriesOf("I:" + bench);
+  const sc = codes.map(c => ({ c, v: rotScore(seriesOf("I:" + c), b, end) }));
+  const ok = sc.filter(x => isNum(x.v)).sort((a, z) => z.v - a.v);
+  const out = {}; ok.forEach((x, i) => { out[x.c] = i + 1; });
+  return out;
+}
+function secCodes(u) {
+  if (u === "core") return D.meta.core.slice();
+  if (u === "sector+thematic") return idxByCat("sector").concat(idxByCat("thematic"));
+  return idxByCat(u);
+}
+function breadthLast(code, key) {
+  if (!BR || !BR.map[code]) return null;
+  const a = BR.map[code].data[key]; for (let i = a.length - 1; i >= 0; i--) if (a[i] != null) return a[i] / 10;
+  return null;
+}
+function memberStats(code) {
+  const m = (D.members[code] || []).map(s => D.bySym[s]).filter(Boolean);
+  const rs = m.map(x => x.rs).filter(isNum);
+  return { n: m.length, avgRs: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null, lead: m.filter(x => x.rs >= 80).length, stage2: m.filter(x => x.stage === 2).length };
+}
+
+/* ============================================================ SECTOR ROTATION */
+const SEC = { s: Object.assign({ uni: "core", bench: null, mode: "rel", mxN: 50 }, LS.get("sec", {})) };
+function secRender() {
+  const s = SEC.s; if (!s.bench || !hasIdx(s.bench)) s.bench = defaultBench();
+  $("#secUni").value = s.uni; fillSelect($("#secBench"), indexOptions(["broad", "sector"]), s.bench);
+  $$("#secMode button").forEach(b => b.classList.toggle("on", b.dataset.v === s.mode));
+  $("#secMxN").value = s.mxN;
+  const codes = secCodes(s.uni).filter(c => c !== s.bench && hasIdx(c));
+  const b = seriesOf("I:" + s.bench), L = D.N - 1;
+  const rk = ranksAt(codes, s.bench, L), rk1 = ranksAt(codes, s.bench, L - 5), rk4 = ranksAt(codes, s.bench, L - 20);
+  const R = (c, k) => s.mode === "rel" ? relRet(c, b, k) : retK(c, k);
+  const rows = codes.map(code => {
+    const c = seriesOf("I:" + code), qd = quadSeries("I:" + code, "I:" + s.bench, "D", 20), qw = quadSeries("I:" + code, "I:" + s.bench, "W", RRG.s.nW || 10);
+    const ms = memberStats(code), m = D.idxMap[code];
+    return { code, name: idxLabel(code), last: c[L], r1d: R(c, 1), r1w: R(c, 5), r1m: R(c, 21), r3m: R(c, 63), r6m: R(c, 126), r1y: R(c, 252),
+      score: rotScore(c, b, L), rank: rk[code], d1: rk1[code] && rk[code] ? rk1[code] - rk[code] : null, d4: rk4[code] && rk[code] ? rk4[code] - rk[code] : null,
+      qd: qd && qd.q, qdp: qd && qd.qp, qw: qw && qw.q, qwp: qw && qw.qp, b50: breadthLast(code, "a50"), b200: breadthLast(code, "a200"),
+      avgRs: ms.avgRs, lead: ms.n ? ms.lead : null, n: ms.n, pe: m.pe, approx: D.member_src[code] === "approx" };
+  });
+  const dlt = v => isNum(v) && v !== 0 ? `<span class="${v > 0 ? "pos" : "neg"}">${v > 0 ? "▲" : "▼"}${Math.abs(v)}</span>` : '<span class="na">·</span>';
+  const qcell = (q, qp) => qChip(q) + (q && qp && q !== qp ? `<span class="flag" title="was ${QN[qp]}">new</span>` : "");
+  table($("#secTable"), [
+    { k: "rank", label: "#", asc: true, f: r => r.rank || "–" },
+    { k: "name", label: "Index", cls: "l", asc: true, f: r => `<span class="symb">${esc(r.name)}</span>` },
+    { k: "last", label: "Last", f: r => fmtPx(r.last) },
+    { k: "r1d", label: "1D", f: r => pct(r.r1d, 2) }, { k: "r1w", label: "1W", f: r => pct(r.r1w) }, { k: "r1m", label: "1M", f: r => pct(r.r1m) },
+    { k: "r3m", label: "3M", f: r => pct(r.r3m) }, { k: "r6m", label: "6M", f: r => pct(r.r6m) }, { k: "r1y", label: "1Y", f: r => pct(r.r1y) },
+    { k: "score", label: "Score", title: "Rotation score (relative return blend)", f: r => num(r.score, 1) },
+    { k: "d1", label: "Δ rank 1W", f: r => dlt(r.d1) }, { k: "d4", label: "Δ rank 4W", f: r => dlt(r.d4) },
+    { k: "qd", label: "RRG daily", cls: "l", sv: r => "GWIL".indexOf(r.qd), f: r => qcell(r.qd, r.qdp) },
+    { k: "qw", label: "RRG weekly", cls: "l", sv: r => "GWIL".indexOf(r.qw), f: r => qcell(r.qw, r.qwp) },
+    { k: "b50", label: "% > 50 DMA", title: "Share of constituents above their 50-day SMA", f: r => isNum(r.b50) ? r.b50.toFixed(0) + "%" : '<span class="na">–</span>' },
+    { k: "b200", label: "% > 200 DMA", f: r => isNum(r.b200) ? r.b200.toFixed(0) + "%" : '<span class="na">–</span>' },
+    { k: "avgRs", label: "Avg RS", title: "Average RS Rating of constituents", f: r => isNum(r.avgRs) ? rsBadge(Math.round(r.avgRs)) : '<span class="na">–</span>' },
+    { k: "lead", label: "RS ≥ 80", title: "Constituents with RS Rating 80 or higher", f: r => r.n ? `${r.lead}/${r.n}${r.approx ? "*" : ""}` : '<span class="na">–</span>' },
+    { k: "pe", label: "P/E", f: r => num(r.pe, 1) },
+  ], rows, { state: SEC.tbl || (SEC.tbl = { key: "rank", dir: 1 }), onRow: r => { LD.s.idx = r.code; LS.set("ld", LD.s); App.rendered.leaders = false; setTab("leaders"); } });
+  if (!loaded.breadth) whenLoaded("breadth", () => { if (App.tab === "sectors") secRender(); });
+
+  // rank history heatmap (last 13 weeks)
+  const wk = D.wk.slice(-13), B = base();
+  const order = rows.filter(r => r.rank).sort((a, z) => a.rank - z.rank).map(r => r.code);
+  const data = [];
+  const n = order.length;
+  wk.forEach((w, xi) => { const rr = ranksAt(order, s.bench, w); order.forEach((c, yi) => { if (rr[c]) data.push({ value: [xi, yi, rr[c]], label: { color: rr[c] > n * 0.55 ? "#0b0b0b" : "#ffffff" } }); }); });
+  const ch = chart("secRank");
+  ch.setOption({
+    textStyle: B.textStyle, animation: false,
+    grid: { left: 150, right: 20, top: 10, bottom: 50 },
+    xAxis: B.axis({ type: "category", data: wk.map(w => dateFmt(D.dates[w])), splitLine: { show: false }, axisLabel: { color: B.t.muted, fontSize: 10, rotate: 40 } }),
+    yAxis: B.axis({ type: "category", inverse: true, data: order.map(idxLabel), splitLine: { show: false }, axisLabel: { color: B.t.text2, fontSize: 11 } }),
+    visualMap: { show: false, min: 1, max: Math.max(2, n), inRange: { color: ["#0d366b", "#256abf", "#5598e7", "#9ec5f4", "#e6eefa"] } },
+    tooltip: B.tooltip({ formatter: p => `<b>${esc(idxLabel(order[p.value[1]]))}</b><br>Week to ${dateFmt(D.dates[wk[p.value[0]]])}: rank <b>${p.value[2]}</b> of ${n}` }),
+    series: [{ type: "heatmap", data, label: { show: true, fontSize: 10, formatter: p => p.value[2] },
+      itemStyle: { borderColor: B.t.surface, borderWidth: 2, borderRadius: 3 } }],
+  }, true);
+  ch.resize();
+
+  // relative-strength matrix
+  const mx = order.slice(0, 30), mN = +s.mxN;
+  const wins = {}, cell = {};
+  mx.forEach(a => { wins[a] = 0; const ca = seriesOf("I:" + a); mx.forEach(z => {
+    if (a === z) return; const r = ratioArr(ca, seriesOf("I:" + z)).slice(-(mN + 5)); const m = sma(r, mN); const ok = isNum(r[r.length - 1]) && isNum(m[m.length - 1]) && r[r.length - 1] > m[m.length - 1];
+    cell[a + "|" + z] = ok; if (ok) wins[a]++; }); });
+  const mo = mx.slice().sort((a, z) => wins[z] - wins[a]);
+  $("#secMatrix").innerHTML = `<table class="matrix"><thead><tr><th class="l">Index</th><th>Wins</th>${mo.map(c => `<th class="rot"><div>${esc(idxLabel(c))}</div></th>`).join("")}</tr></thead><tbody>` +
+    mo.map(a => `<tr><td class="l"><b>${esc(idxLabel(a))}</b></td><td><b>${wins[a]}</b></td>${mo.map(z => a === z ? '<td style="background:var(--soft)"></td>' :
+      cell[a + "|" + z] ? '<td style="background:var(--pos-bg);color:var(--pos)" title="' + esc(idxLabel(a)) + " beats " + esc(idxLabel(z)) + '">✓</td>' : '<td style="color:var(--neg);opacity:.7">✗</td>').join("")}</tr>`).join("") +
+    `</tbody></table>${order.length > 30 ? '<div class="note" style="padding:8px">Top 30 by rotation score shown.</div>' : ""}`;
+}
+App.renderers.sectors = function () {
+  secRender();
+  if (SEC.bound) return; SEC.bound = true;
+  const s = SEC.s, save = () => { LS.set("sec", s); secRender(); };
+  $("#secUni").onchange = e => { s.uni = e.target.value; save(); };
+  $("#secBench").onchange = e => { s.bench = e.target.value; save(); };
+  $$("#secMode button").forEach(b => b.onclick = () => { s.mode = b.dataset.v; save(); });
+  $("#secMxN").onchange = e => { s.mxN = +e.target.value; save(); };
+};
+
+/* ============================================================ relative metrics of a stock vs any index (browser side) */
+function relMetrics(sym, benchCode) {
+  const p = seriesOf("S:" + sym), b = seriesOf("I:" + benchCode);
+  if (!p || !b) return {};
+  const L = D.N - 1, rl = ratioArr(p, b);
+  const w = pick(rl, D.wk), ms = sma(w, 52);
+  const mrs = isNum(w[w.length - 1]) && isNum(ms[ms.length - 1]) ? (w[w.length - 1] / ms[ms.length - 1] - 1) * 100 : null;
+  let hi = -Infinity, cnt = 0; for (let i = Math.max(0, L - 251); i <= L; i++) if (isNum(rl[i])) { hi = Math.max(hi, rl[i]); cnt++; }
+  const nh = cnt >= 126 && isNum(rl[L]) ? rl[L] >= hi * 0.9999 : null;
+  const q = quadSeries("S:" + sym, "I:" + benchCode, "W", RRG.s.nW || 10);
+  return { mrs, nh, q: q && q.q, qp: q && q.qp, rel1m: relRet(p, b, 21), rel3m: relRet(p, b, 63), rel6m: relRet(p, b, 126) };
+}
+
+/* ============================================================ SECTOR LEADERS */
+const LD = { s: Object.assign({ idx: "NIFTYBANK", bench: "self", minRs: 0 }, LS.get("ld", {})) };
+function ldRender() {
+  const s = LD.s;
+  const withMembers = indexOptions().map(g => ({ group: g.group, items: g.items.filter(i => (D.members[i.v] || []).length) })).filter(g => g.items.length);
+  if (!(D.members[s.idx] || []).length) s.idx = (withMembers[1] || withMembers[0]).items[0].v;
+  fillSelect($("#ldIdx"), withMembers, s.idx);
+  fillSelect($("#ldBench"), [{ v: "self", l: "the index itself" }].concat(["NIFTY50", "NIFTY500", "NIFTY100"].filter(hasIdx).map(c => ({ v: c, l: idxLabel(c) }))), s.bench);
+  $("#ldMinRs").value = s.minRs;
+  if (!loaded.series) { $("#ldTable").innerHTML = '<div class="loading">Loading stock history…</div>'; whenLoaded("series", () => { if (App.tab === "leaders") ldRender(); }); return; }
+  const comp = s.bench === "self" ? s.idx : s.bench, L = D.N - 1;
+  const ci = seriesOf("I:" + s.idx), n50 = seriesOf("I:" + defaultBench());
+  const qw = quadSeries("I:" + s.idx, "I:" + defaultBench(), "W", RRG.s.nW || 10);
+  const ms = memberStats(s.idx);
+  const tiles = [
+    ["1M vs Nifty 50", pct(relRet(ci, n50, 21)), `absolute ${retK(ci, 21) != null ? retK(ci, 21).toFixed(1) + "%" : "–"}`],
+    ["3M vs Nifty 50", pct(relRet(ci, n50, 63)), `absolute ${retK(ci, 63) != null ? retK(ci, 63).toFixed(1) + "%" : "–"}`],
+    ["Weekly RRG vs Nifty 50", qw ? qChip(qw.q) : "–", qw && qw.qp && qw.qp !== qw.q ? `was ${QN[qw.qp]} last week` : "&nbsp;"],
+    ["Above 50-day SMA", isNum(breadthLast(s.idx, "a50")) ? breadthLast(s.idx, "a50").toFixed(0) + "%" : "–", "of constituents"],
+    ["RS Rating ≥ 80", `${ms.lead} / ${ms.n}`, isNum(ms.avgRs) ? `average RS ${ms.avgRs.toFixed(0)}` : ""],
+    ["Stage 2 (advancing)", `${ms.stage2} / ${ms.n}`, "price above a rising 30-week SMA"],
+  ];
+  $("#ldTiles").innerHTML = tiles.map(t => `<div class="tile"><div class="k">${t[0]}</div><div class="v">${t[1]}</div><div class="s">${t[2]}</div></div>`).join("");
+  const rows = (D.members[s.idx] || []).map(sym => {
+    const o = D.bySym[sym]; if (!o) return null;
+    return Object.assign({}, o, relMetrics(sym, comp));
+  }).filter(r => r && (r.rs || 0) >= s.minRs);
+  $("#ldSub").textContent = `${rows.length} stocks · relative columns vs ${idxLabel(comp)}${D.member_src[s.idx] === "approx" ? " · approximate list (Nifty 500 stocks of the matching NSE industry)" : ""}`;
+  table($("#ldTable"), [
+    { k: "sym", label: "Stock", cls: "l", asc: true, f: r => `<span class="symb">${esc(r.sym)}</span><span class="nm">${esc(r.name)}</span>` },
+    { k: "close", label: "Close", f: r => fmtPx(r.close) }, { k: "chg", label: "1D", f: r => pct(r.chg, 2) },
+    { k: "r1m", label: "1M", f: r => pct(r.r1m) }, { k: "r3m", label: "3M", f: r => pct(r.r3m) },
+    { k: "rel3m", label: "Rel 3M", title: "3-month return relative to the comparison index", f: r => pct(r.rel3m) },
+    { k: "rs", label: "RS", title: "RS Rating 1–99", f: r => rsBadge(r.rs) + (isNum(r.rs4w) && isNum(r.rs) ? ` <span class="sub">${r.rs - r.rs4w >= 0 ? "+" : ""}${r.rs - r.rs4w}</span>` : "") },
+    { k: "mrs", label: "Mansfield", title: "Mansfield RS vs the comparison index (weekly, 52-week base)", f: r => pct(r.mrs, 1) },
+    { k: "q", label: "RRG wk", cls: "l", sv: r => "GWIL".indexOf(r.q), f: r => qChip(r.q) + (r.q && r.qp && r.q !== r.qp ? '<span class="flag">new</span>' : "") },
+    { k: "nh", label: "RS NH", title: "RS line vs the comparison index at a 52-week high", sv: r => r.nh ? 1 : 0, f: r => r.nh ? '<span class="flag">NH</span>' : "" },
+    { k: "off_hi", label: "From high", f: r => pct(r.off_hi, 1) },
+    { k: "stage", label: "Stage", f: r => r.stage || "–" }, { k: "tt", label: "TT", title: "Minervini trend template rules met (of 8)", f: r => isNum(r.tt) ? r.tt + "/8" : "–" },
+    { k: "val_cr", label: "₹ Cr/day", f: r => num(r.val_cr, 1) },
+  ], rows, { state: LD.tbl || (LD.tbl = { key: "rs", dir: -1 }), onRow: r => openStock(r.sym) });
+  // bar chart
+  const B = base(), bars = rows.filter(r => isNum(r.rel3m)).sort((a, z) => a.rel3m - z.rel3m);
+  const c = chart("ldBar");
+  $("#ldBar").style.height = Math.max(320, bars.length * 18 + 60) + "px"; c.resize();
+  c.setOption({
+    textStyle: B.textStyle, animation: false, grid: { left: 100, right: 40, top: 10, bottom: 30 },
+    xAxis: B.axis({ type: "value", axisLabel: { color: B.t.muted, formatter: v => v + "%" } }),
+    yAxis: B.axis({ type: "category", data: bars.map(r => r.sym), splitLine: { show: false }, axisLabel: { color: B.t.text2, fontSize: 11 } }),
+    tooltip: B.tooltip({ trigger: "axis", axisPointer: { type: "shadow" }, formatter: p => `<b>${esc(p[0].name)}</b><br>3M relative to ${esc(idxLabel(comp))}: <b>${p[0].value.toFixed(1)}%</b>` }),
+    series: [{ type: "bar", barMaxWidth: 12, data: bars.map(r => ({ value: +r.rel3m.toFixed(2), itemStyle: { color: r.rel3m >= 0 ? css("--pos") : css("--neg"), borderRadius: r.rel3m >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) }],
+  }, true);
+}
+App.renderers.leaders = function () {
+  ldRender();
+  if (LD.bound) return; LD.bound = true;
+  const s = LD.s, save = () => { LS.set("ld", s); ldRender(); };
+  $("#ldIdx").onchange = e => { s.idx = e.target.value; save(); };
+  $("#ldBench").onchange = e => { s.bench = e.target.value; save(); };
+  $("#ldMinRs").onchange = e => { s.minRs = +e.target.value || 0; save(); };
+  $("#ldToRrg").onclick = () => { RRG.s.uni = "members"; RRG.s.idx = s.idx; RRG.s.bench = s.bench === "self" ? s.idx : s.bench; rrgSave(); App.rendered.rrg = false; setTab("rrg"); };
+};
+
+/* ============================================================ RELATIVE STRENGTH (stocks) */
+const RS_DEFAULT = { q: "", uni: "ALL", sec: "", min: 0, val: 0, q500: "", stage: "", tt: 0, nh: false, bp: false, mrs: false, sme: false, special: "" };
+const RSV = { s: Object.assign({}, RS_DEFAULT, LS.get("rs", {})) };
+const grpOf = o => o.nse_ind || o.sector || "Other";
+function leadingSectorSet() {
+  const set = new Set();
+  D.idx.codes.forEach(c => { const cat = D.idxMap[c].cat; if (cat !== "sector" && cat !== "thematic") return;
+    const q = quadSeries("I:" + c, "I:" + defaultBench(), "W", RRG.s.nW || 10); if (q && (q.q === "L" || q.q === "I")) set.add(c); });
+  return set;
+}
+const RS_PRESETS = [
+  ["RS ≥ 90 leaders", { min: 90 }],
+  ["RS new high before price", { bp: true }],
+  ["Stage 2 + RS ≥ 80", { stage: "2", min: 80 }],
+  ["Minervini template 8/8", { tt: 8 }],
+  ["Just turned Leading vs Nifty 500", { special: "fresh" }],
+  ["Leaders in leading/improving sectors", { min: 80, special: "secLead" }],
+  ["RS rising fast (+15 in 4 weeks)", { special: "rising" }],
+];
+function rsFilter() {
+  const s = RSV.s, q = s.q.trim().toUpperCase();
+  const uni = s.uni === "ALL" ? null : new Set(universeSyms(s.uni));
+  const secLead = s.special === "secLead" ? leadingSectorSet() : null;
+  return D.S.filter(o => {
+    if (!s.sme && o.sme) return false;
+    if (uni && !uni.has(o.sym)) return false;
+    if (q && !o.sym.includes(q) && !(o.name || "").toUpperCase().includes(q)) return false;
+    if (s.sec && grpOf(o) !== s.sec) return false;
+    if (s.min && !((o.rs || 0) >= s.min)) return false;
+    if (s.val && !((o.val_cr || 0) >= s.val)) return false;
+    if (s.q500 && o.q500 !== s.q500) return false;
+    if (s.stage && String(o.stage) !== s.stage) return false;
+    if (s.tt && !((o.tt || 0) >= s.tt)) return false;
+    if (s.nh && !o.rsnh) return false;
+    if (s.bp && !o.rsnh_bp) return false;
+    if (s.mrs && !((o.mrs500 || 0) > 0)) return false;
+    if (s.special === "fresh" && !(o.q500 === "L" && o.q500p && o.q500p !== "L")) return false;
+    if (s.special === "secLead" && !secLead.has(o.sec)) return false;
+    if (s.special === "rising" && !(isNum(o.rs) && isNum(o.rs4w) && o.rs - o.rs4w >= 15 && o.rs >= 60)) return false;
+    return true;
+  });
+}
+const RS_COLS = [
+  { k: "sym", label: "Stock", cls: "l", asc: true, f: r => `<span class="symb">${esc(r.sym)}</span>${r.sme ? '<span class="flag">SME</span>' : ""}<span class="nm">${esc(r.name)}</span>` },
+  { k: "grp", label: "Sector", cls: "l", asc: true, sv: r => grpOf(r), f: r => `<span class="sub">${esc(grpOf(r))}</span>` },
+  { k: "close", label: "Close", f: r => fmtPx(r.close) },
+  { k: "chg", label: "1D", f: r => pct(r.chg, 2) }, { k: "r1w", label: "1W", f: r => pct(r.r1w) }, { k: "r1m", label: "1M", f: r => pct(r.r1m) },
+  { k: "r3m", label: "3M", f: r => pct(r.r3m) }, { k: "r6m", label: "6M", f: r => pct(r.r6m) }, { k: "r1y", label: "1Y", f: r => pct(r.r1y) },
+  { k: "rs", label: "RS", title: "RS Rating 1–99 (IBD style, percentile vs all NSE stocks)", f: r => rsBadge(r.rs) + (r.rs_part ? '<span class="sub" title="less than 12 months of history">*</span>' : "") },
+  { k: "d4", label: "Δ4W", title: "RS Rating change over 4 weeks", sv: r => isNum(r.rs) && isNum(r.rs4w) ? r.rs - r.rs4w : null, f: r => isNum(r.rs) && isNum(r.rs4w) ? pct(r.rs - r.rs4w, 0).replace(/%/g, "") : '<span class="na">–</span>' },
+  { k: "mrs500", label: "Mansfield", title: "Mansfield RS vs Nifty 500 (weekly; % above the 52-week average of the RS line)", f: r => pct(r.mrs500, 1) },
+  { k: "rsnh", label: "RS line", title: "NH = RS line at a 52-week high; BP = new high before price", sv: r => (r.rsnh_bp ? 2 : 0) + (r.rsnh ? 1 : 0) + (r.rsnh5 ? 0.5 : 0), f: r => (r.rsnh ? '<span class="flag">NH</span>' : r.rsnh5 ? '<span class="flag" style="opacity:.6" title="new high within the last 5 sessions">NH 5d</span>' : "") + (r.rsnh_bp ? '<span class="flag" style="background:var(--pos-bg);color:var(--pos)">BP</span>' : "") },
+  { k: "q500", label: "RRG vs N500", cls: "l", sv: r => "GWIL".indexOf(r.q500), f: r => qChip(r.q500) + (r.q500 && r.q500p && r.q500 !== r.q500p ? '<span class="flag">new</span>' : "") },
+  { k: "qsec", label: "RRG vs sector", cls: "l", sv: r => "GWIL".indexOf(r.qsec), title: "Weekly RRG quadrant vs the stock's sector index", f: r => qChip(r.qsec) },
+  { k: "stage", label: "Stage", f: r => r.stage || "–" },
+  { k: "tt", label: "TT", title: "Minervini trend template rules met (of 8)", f: r => isNum(r.tt) ? r.tt + "/8" : "–" },
+  { k: "off_hi", label: "From high", f: r => pct(r.off_hi, 1) },
+  { k: "udv", label: "U/D vol", title: "Up-day volume ÷ down-day volume, 50 sessions (>1 = accumulation)", f: r => num(r.udv, 2) },
+  { k: "val_cr", label: "₹ Cr/day", title: "Average traded value, 20 sessions", f: r => num(r.val_cr, 1) },
+  { k: "mcap", label: "Mcap ₹ Cr", f: r => isNum(r.mcap) ? r.mcap.toLocaleString("en-IN") : "–" },
+  { k: "deliv", label: "Deliv %", title: "Average delivery %, last 10 sessions", f: r => num(r.deliv, 0) },
+];
+function rsRender() {
+  const s = RSV.s;
+  fillSelect($("#rsUni"), stockUniverseOptions(), s.uni);
+  const groups = [...new Set(D.S.map(grpOf))].sort();
+  fillSelect($("#rsSec"), [{ v: "", l: "All" }].concat(groups.map(g => ({ v: g, l: g }))), s.sec);
+  $("#rsQ").value = s.q; $("#rsMin").value = s.min; $("#rsVal").value = s.val; $("#rsQ500").value = s.q500; $("#rsStage").value = s.stage; $("#rsTT").value = s.tt;
+  $("#rsNH").checked = s.nh; $("#rsBP").checked = s.bp; $("#rsMrs").checked = s.mrs; $("#rsSme").checked = s.sme;
+  $("#rsPresets").innerHTML = RS_PRESETS.map(([l, p], i) => `<span class="chip ${RSV.preset === i ? "on" : ""}" data-p="${i}">${esc(l)}</span>`).join("");
+  $$("#rsPresets .chip").forEach(ch => ch.onclick = () => {
+    const i = +ch.dataset.p; if (RSV.preset === i) { RSV.preset = null; RSV.s = Object.assign({}, RS_DEFAULT, { uni: s.uni }); }
+    else { RSV.preset = i; RSV.s = Object.assign({}, RS_DEFAULT, { uni: s.uni, sme: s.sme }, RS_PRESETS[i][1]); }
+    LS.set("rs", RSV.s); rsRender();
+  });
+  const rows = rsFilter();
+  $("#rsCount").textContent = `${rows.length.toLocaleString("en-IN")} stocks`;
+  RSV.tbl = table($("#rsTable"), RS_COLS, rows, { limit: 200, state: RSV.tst || (RSV.tst = { key: "rs", dir: -1 }), onRow: r => openStock(r.sym) });
+}
+App.renderers.rs = function () {
+  rsRender();
+  if (RSV.bound) return; RSV.bound = true;
+  const upd = (k, v) => { RSV.s[k] = v; RSV.preset = null; LS.set("rs", RSV.s); rsRender(); };
+  $("#rsQ").oninput = debounce(e => upd("q", e.target.value), 250);
+  $("#rsUni").onchange = e => upd("uni", e.target.value);
+  $("#rsSec").onchange = e => upd("sec", e.target.value);
+  $("#rsMin").onchange = e => upd("min", +e.target.value || 0);
+  $("#rsVal").onchange = e => upd("val", +e.target.value || 0);
+  $("#rsQ500").onchange = e => upd("q500", e.target.value);
+  $("#rsStage").onchange = e => upd("stage", e.target.value);
+  $("#rsTT").onchange = e => upd("tt", +e.target.value);
+  $("#rsNH").onchange = e => upd("nh", e.target.checked);
+  $("#rsBP").onchange = e => upd("bp", e.target.checked);
+  $("#rsMrs").onchange = e => upd("mrs", e.target.checked);
+  $("#rsSme").onchange = e => upd("sme", e.target.checked);
+  $("#rsReset").onclick = () => { RSV.s = Object.assign({}, RS_DEFAULT); RSV.preset = null; LS.set("rs", RSV.s); rsRender(); };
+  $("#rsCsv").onclick = () => {
+    const rows = RSV.tbl.sorted(), cols = ["sym", "name", "nse_ind", "sector", "industry", "close", "chg", "r1w", "r1m", "r3m", "r6m", "r1y", "rs", "rs4w", "rs13w", "mrs50", "mrs500", "mrs_sec", "rsnh", "rsnh_bp", "q500", "qsec", "stage", "tt", "off_hi", "above_lo", "udv", "val_cr", "mcap", "deliv"];
+    const csv = [cols.join(",")].concat(rows.map(r => cols.map(c => { const v = r[c]; return v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v; }).join(","))).join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = `relative-strength-${D.meta.latest}.csv`; a.click();
+  };
+};
+
+/* ============================================================ stock drawer */
+function closeDrawer() { $("#drawer").classList.remove("open"); if (!$("#modal").classList.contains("open")) $("#overlay").classList.remove("open"); }
+function openStock(sym) {
+  const o = D.bySym[sym]; if (!o) return;
+  $("#drawer").classList.add("open"); $("#overlay").classList.add("open");
+  const tvk = sym.replace(/[^A-Z0-9]/g, "_");
+  const scr = "index.html#" + encodeURIComponent(JSON.stringify({ q: sym, conds: [] }));
+  $("#dHead").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+    <div><h2>${esc(sym)} <span class="sub" style="font-size:14px;font-weight:400">${esc(o.name)}</span></h2>
+    <div style="margin-top:4px"><b style="font-size:19px">₹${fmtPx(o.close)}</b> ${pct(o.chg, 2)} <span class="sub">· ${esc(grpOf(o))}${o.industry ? " · " + esc(o.industry) : ""}${o.sec ? " · sector index: " + esc(idxLabel(o.sec)) : ""}</span></div>
+    <div style="display:flex;gap:14px;margin-top:6px;font-size:13px;flex-wrap:wrap"><a href="https://in.tradingview.com/chart/?symbol=NSE:${tvk}" target="_blank" rel="noopener">TradingView chart ↗</a>
+    <a href="https://www.nseindia.com/get-quotes/equity?symbol=${encodeURIComponent(sym)}" target="_blank" rel="noopener">NSE quote ↗</a><a href="${scr}">Camarilla levels ↗</a></div></div>
+    <button class="x" onclick="closeDrawer()">×</button></div>`;
+  const kv = [
+    ["RS Rating", isNum(o.rs) ? `${o.rs}${o.rs_part ? "*" : ""}` : "–"], ["Δ 1W / 4W / 13W", [o.rs1w, o.rs4w, o.rs13w].map(x => isNum(o.rs) && isNum(x) ? (o.rs - x >= 0 ? "+" : "") + (o.rs - x) : "–").join(" / ")],
+    ["Mansfield vs N50", isNum(o.mrs50) ? o.mrs50.toFixed(1) + "%" : "–"], ["Mansfield vs N500", isNum(o.mrs500) ? o.mrs500.toFixed(1) + "%" : "–"],
+    ["Mansfield vs sector", isNum(o.mrs_sec) ? o.mrs_sec.toFixed(1) + "%" : "–"], ["RS line 52W high", o.rsnh ? "Yes" : o.rsnh5 ? "In last 5 days" : "No"],
+    ["RS high before price", o.rsnh_bp ? "Yes" : "No"], ["RRG vs Nifty 500", o.q500 ? QN[o.q500] : "–"], ["RRG vs sector", o.qsec ? QN[o.qsec] : "–"],
+    ["Weinstein stage", o.stage || "–"], ["Trend template", isNum(o.tt) ? o.tt + " / 8" : "–"], ["From 52W high", isNum(o.off_hi) ? o.off_hi.toFixed(1) + "%" : "–"],
+    ["Above 52W low", isNum(o.above_lo) ? o.above_lo.toFixed(1) + "%" : "–"], ["Up/down volume", num(o.udv, 2)], ["₹ Cr / day", num(o.val_cr, 1)],
+    ["Market cap ₹ Cr", isNum(o.mcap) ? o.mcap.toLocaleString("en-IN") : "–"],
+  ];
+  const benches = [["NIFTY50", "Nifty 50"], ["NIFTY500", "Nifty 500"]].filter(([c]) => hasIdx(c));
+  if (o.sec && hasIdx(o.sec) && !benches.find(b => b[0] === o.sec)) benches.push([o.sec, idxLabel(o.sec)]);
+  $("#dBody").innerHTML = `<div class="card"><div class="cb kv">${kv.map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join("")}</div></div>
+    <div class="card"><div class="ch">Price, RS line &amp; Mansfield RS <span class="spacer"></span>
+      <label class="f sub">RS vs <select id="dBench">${benches.map(([c, l]) => `<option value="${c}">${esc(l)}</option>`).join("")}</select></label>
+      <div class="seg" id="dRange"><button data-v="252" class="on">1Y</button><button data-v="all">All</button></div></div>
+      <div class="chart" id="dChart" style="height:640px"></div></div>
+    <div class="grid2e"><div class="card"><div class="ch">RS Rating, weekly</div><div class="chart small" id="dRs"></div></div>
+      <div class="card"><div class="ch">Minervini trend template</div><div class="cb rules" id="dRules"></div></div></div>`;
+  const st = { bench: benches[0] ? benches[0][0] : null, range: 252 };
+  const draw = () => whenLoaded("series", () => stockCharts(sym, st));
+  $("#dBench").onchange = e => { st.bench = e.target.value; draw(); };
+  $$("#dRange button").forEach(b => b.onclick = () => { $$("#dRange button").forEach(x => x.classList.toggle("on", x === b)); st.range = b.dataset.v === "all" ? 1e9 : +b.dataset.v; draw(); });
+  if (!loaded.series) $("#dChart").innerHTML = '<div class="loading">Loading stock history…</div>';
+  draw();
+}
+function stockCharts(sym, st) {
+  const p = seriesOf("S:" + sym), B = base(), o = D.bySym[sym];
+  if (!p) { $("#dChart").innerHTML = '<div class="empty">Daily history for this stock is not included in the chart file (only index constituents and F&amp;O stocks are). The metrics above still apply.</div>'; $("#dRules").innerHTML = ""; return; }
+  const L = D.N - 1, s0 = Math.max(0, D.N - st.range, p.findIndex(isNum));
+  const xs = D.dates.slice(s0);
+  const m50 = sma(p, 50), m150 = sma(p, 150), m200 = sma(p, 200);
+  const b = seriesOf("I:" + st.bench), rl = ratioArr(p, b);
+  const base0 = rl.slice(s0).find(isNum) || 1;
+  const rlN = rl.map(v => isNum(v) ? 100 * v / base0 : null);
+  const rlMa = sma(rlN, 50);
+  const nh = []; for (let i = s0; i <= L; i++) { let hi = -Infinity, c = 0; for (let j = Math.max(0, i - 251); j <= i; j++) if (isNum(rl[j])) { hi = Math.max(hi, rl[j]); c++; } if (c >= 126 && isNum(rl[i]) && rl[i] >= hi * 0.9999) nh.push([D.dates[i], rlN[i]]); }
+  const wkv = pick(rl, D.wk), wma52 = sma(wkv, 52);
+  const mrs = new Array(xs.length).fill(null);
+  D.wk.forEach((r, k) => { if (r >= s0 && isNum(wkv[k]) && isNum(wma52[k])) mrs[r - s0] = +((wkv[k] / wma52[k] - 1) * 100).toFixed(2); });
+  const col = seriesColors(), sl = a => a.slice(s0).map(v => isNum(v) ? +v.toFixed(2) : null);
+  const c = chart("dChart");
+  c.setOption({
+    textStyle: B.textStyle, animation: false, axisPointer: { link: [{ xAxisIndex: "all" }] },
+    legend: B.legend({ top: 0, data: ["Close", "50 SMA", "150 SMA", "200 SMA", "RS line", "RS 50 SMA", "RS new high"] }),
+    grid: [{ left: 60, right: 20, top: 30, height: "42%" }, { left: 60, right: 20, top: "53%", height: "22%" }, { left: 60, right: 20, top: "80%", height: "13%" }],
+    xAxis: [0, 1, 2].map(i => B.axis({ type: "category", gridIndex: i, data: xs, boundaryGap: false, axisLabel: { show: i === 2, color: B.t.muted, fontSize: 10, formatter: dateFmt }, splitLine: { show: false } })),
+    yAxis: [B.axis({ gridIndex: 0, scale: true, name: "₹", nameTextStyle: { color: B.t.muted } }), B.axis({ gridIndex: 1, scale: true, name: "RS (rebased)", nameTextStyle: { color: B.t.muted } }), B.axis({ gridIndex: 2, name: "Mansfield %", nameTextStyle: { color: B.t.muted } })],
+    tooltip: B.tooltip({ trigger: "axis", valueFormatter: v => isNum(v) ? v.toFixed(2) : "–" }),
+    dataZoom: [{ type: "inside", xAxisIndex: [0, 1, 2] }],
+    series: [
+      { name: "Close", type: "line", data: sl(p), showSymbol: false, lineStyle: { width: 2, color: col[0] }, itemStyle: { color: col[0] } },
+      { name: "50 SMA", type: "line", data: sl(m50), showSymbol: false, lineStyle: { width: 1.2, color: col[1] }, itemStyle: { color: col[1] } },
+      { name: "150 SMA", type: "line", data: sl(m150), showSymbol: false, lineStyle: { width: 1.2, color: col[2] }, itemStyle: { color: col[2] } },
+      { name: "200 SMA", type: "line", data: sl(m200), showSymbol: false, lineStyle: { width: 1.2, color: col[3] }, itemStyle: { color: col[3] } },
+      { name: "RS line", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: sl(rlN), showSymbol: false, lineStyle: { width: 1.8, color: col[6] }, itemStyle: { color: col[6] } },
+      { name: "RS 50 SMA", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: sl(rlMa), showSymbol: false, lineStyle: { width: 1, color: B.t.muted }, itemStyle: { color: B.t.muted } },
+      { name: "RS new high", type: "scatter", xAxisIndex: 1, yAxisIndex: 1, data: nh.map(x => [x[0], +x[1].toFixed(2)]), symbolSize: 6, itemStyle: { color: col[0], borderColor: B.t.surface, borderWidth: 1 } },
+      { name: "Mansfield", type: "bar", xAxisIndex: 2, yAxisIndex: 2, barWidth: 3, data: mrs.map(v => ({ value: v, itemStyle: { color: isNum(v) && v >= 0 ? css("--pos") : css("--neg") } })) },
+    ],
+  }, true);
+  // RS rating history
+  const k = SER.pos[sym], hist = SER.rsr[k] || [];
+  const ch2 = chart("dRs");
+  ch2.setOption({
+    textStyle: B.textStyle, animation: false, grid: { left: 40, right: 16, top: 16, bottom: 30 },
+    xAxis: B.axis({ type: "category", data: SER.weeks.map(dateFmt), boundaryGap: false, splitLine: { show: false } }),
+    yAxis: B.axis({ min: 0, max: 100 }),
+    tooltip: B.tooltip({ trigger: "axis" }),
+    series: [{ type: "line", name: "RS Rating", data: hist, showSymbol: false, lineStyle: { width: 2, color: col[0] }, itemStyle: { color: col[0] },
+      markLine: { silent: true, symbol: "none", lineStyle: { color: B.t.axis, type: "solid" }, label: { color: B.t.muted, fontSize: 10, formatter: "{c}" }, data: [{ yAxis: 80 }, { yAxis: 90 }] } }],
+  }, true);
+  // trend template rules
+  let hi = -Infinity, lo = Infinity; for (let i = Math.max(0, L - 251); i <= L; i++) if (isNum(p[i])) { hi = Math.max(hi, p[i]); lo = Math.min(lo, p[i]); }
+  const px = p[L];
+  const rules = [
+    ["Price above 150 & 200-day SMA", px > m150[L] && px > m200[L]], ["150-day SMA above 200-day SMA", m150[L] > m200[L]],
+    ["200-day SMA rising for 1 month", m200[L] > m200[L - 21]], ["50-day SMA above 150 & 200-day", m50[L] > m150[L] && m50[L] > m200[L]],
+    ["Price above 50-day SMA", px > m50[L]], ["Price ≥ 30% above 52-week low", px >= 1.3 * lo],
+    ["Price within 25% of 52-week high", px >= 0.75 * hi], ["RS Rating ≥ 70", (o.rs || 0) >= 70],
+  ];
+  $("#dRules").innerHTML = rules.map(([t, ok]) => `<div class="${ok ? "ok" : ""}">${t}</div>`).join("") + '<div class="note" style="grid-column:1/-1;margin-top:6px">Closing-price based; the table\'s TT score uses daily highs/lows for the 52-week range.</div>';
+}
+
+/* ============================================================ RATIO CHARTS */
+const RA = { s: Object.assign({ nums: ["I:NIFTYMIDCAP150"], den: "I:NIFTY50", range: 252, mode: "ratio", sma: true }, LS.get("ra", {})) };
+const RA_PRESETS = [
+  ["Midcap 150 / Nifty 50", "I:NIFTYMIDCAP150", "I:NIFTY50"], ["Smallcap 250 / Nifty 50", "I:NIFTYSMALLCAP250", "I:NIFTY50"],
+  ["Nifty 500 Equal Weight / Nifty 500", "I:NIFTY500EQUALWEIGHT", "I:NIFTY500"], ["High Beta 50 / Low Volatility 50", "I:NIFTYHIGHBETA50", "I:NIFTYLOWVOLATILITY50"],
+  ["Nifty200 Momentum 30 / Nifty 200", "I:NIFTY200MOMENTUM30", "I:NIFTY200"], ["Bank / Nifty 50", "I:NIFTYBANK", "I:NIFTY50"],
+  ["IT / Nifty 50", "I:NIFTYIT", "I:NIFTY50"], ["PSU Bank / Private Bank", "I:NIFTYPSUBANK", "I:NIFTYPRIVATEBANK"],
+  ["Metal / Nifty 50", "I:NIFTYMETAL", "I:NIFTY50"], ["Defence / Nifty 50", "I:NIFTYINDIADEFENCE", "I:NIFTY50"],
+  ["FMCG / Nifty 50", "I:NIFTYFMCG", "I:NIFTY50"], ["Pharma / Nifty 50", "I:NIFTYPHARMA", "I:NIFTY50"],
+];
+const sig4 = v => !isNum(v) ? "–" : Math.abs(v) >= 1000 ? v.toFixed(0) : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 0.1 ? v.toFixed(3) : v.toPrecision(3);
+function rsiArr(a, n = 14) {
+  const o = new Array(a.length).fill(null); let up = null, dn = null, prev = null;
+  for (let i = 0; i < a.length; i++) { const v = a[i]; if (!isNum(v)) continue; if (prev != null) { const d = v - prev; const u = Math.max(d, 0), w = Math.max(-d, 0);
+    up = up == null ? u : up + (u - up) / n; dn = dn == null ? w : dn + (w - dn) / n; o[i] = dn === 0 ? 100 : 100 - 100 / (1 + up / dn); } prev = v; }
+  return o;
+}
+function raRender() {
+  const s = RA.s, B = base(), col = seriesColors();
+  instrumentList();
+  $("#raDen").value = s.den ? (s.den.startsWith("I:") ? idxLabel(s.den.slice(2)) + " (index)" : s.den.slice(2)) : "";
+  $$("#raRange button").forEach(b => b.classList.toggle("on", String(b.dataset.v) === String(s.range)));
+  $$("#raMode button").forEach(b => b.classList.toggle("on", b.dataset.v === s.mode));
+  $("#raSma").checked = s.sma;
+  $("#raPresets").innerHTML = '<span class="sub" style="align-self:center">Popular ratios:</span>' + RA_PRESETS.filter(p => hasSeries(p[1]) && hasSeries(p[2]))
+    .map(p => `<span class="chip" data-n="${p[1]}" data-d="${p[2]}">${esc(p[0])}</span>`).join("");
+  $("#raPresets").innerHTML += Object.keys(D.lists).map(n => `<span class="chip" data-wl="${esc(n)}">★ ${esc(n)}</span>`).join("");
+  $$("#raPresets .chip[data-n]").forEach(ch => ch.onclick = () => { s.nums = [ch.dataset.n]; s.den = ch.dataset.d; LS.set("ra", s); raRender(); });
+  $$("#raPresets .chip[data-wl]").forEach(ch => ch.onclick = () => { s.nums = (D.lists[ch.dataset.wl] || []).filter(id => id !== s.den).slice(0, 8); LS.set("ra", s); raRender(); });
+  const needSer = s.nums.concat([s.den || ""]).some(id => id.startsWith("S:"));
+  if (needSer && !loaded.series) { $("#raChips").innerHTML = '<span class="sub">Loading stock history…</span>'; whenLoaded("series", raRender); return; }
+  s.nums = s.nums.filter(hasSeries).slice(0, 8);
+  $("#raChips").innerHTML = s.nums.map((id, i) => `<span class="chip on" style="border-color:${col[i]};color:var(--ink);background:transparent"><span style="display:inline-block;width:10px;height:3px;background:${col[i]};margin-right:6px;vertical-align:middle"></span>${esc(idName(id))} <a href="#" data-rm="${i}" style="margin-left:4px">×</a></span>`).join("") +
+    (s.nums.length < 8 ? '<span class="sub" style="align-self:center">Add up to 8 instruments to compare against one denominator.</span>' : "");
+  $$("#raChips [data-rm]").forEach(a => a.onclick = e => { e.preventDefault(); s.nums.splice(+a.dataset.rm, 1); LS.set("ra", s); raRender(); });
+  const c = chart("raChart");
+  if (!s.nums.length) { c.clear(); $("#raStats").innerHTML = '<div class="empty">Add an instrument to compare.</div>'; return; }
+  const den = s.den && hasSeries(s.den) ? seriesOf(s.den) : null;
+  const L = D.N - 1, s0 = s.range === "all" ? 0 : Math.max(0, D.N - 1 - s.range);
+  const rebase = s.mode === "norm" || s.nums.length > 1;
+  const xs = D.dates.slice(s0);
+  const series = [], stats = [];
+  s.nums.forEach((id, i) => {
+    const p = seriesOf(id), r = den ? ratioArr(p, den) : p.slice();
+    const st = r.slice(s0).find(isNum);
+    const disp = r.map(v => isNum(v) ? (rebase ? 100 * v / st : v) : null);
+    series.push({ name: idName(id) + (den ? " / " + idName(s.den) : ""), type: "line", data: disp.slice(s0).map(v => isNum(v) ? +v.toPrecision(6) : null), showSymbol: false, lineStyle: { width: 2, color: col[i] }, itemStyle: { color: col[i] } });
+    const m50 = sma(r, 50), m200 = sma(r, 200);
+    let hi = -Infinity, lo = Infinity, hiI = null; for (let k = Math.max(0, L - 251); k <= L; k++) if (isNum(r[k])) { if (r[k] > hi) { hi = r[k]; hiI = k; } lo = Math.min(lo, r[k]); }
+    const ch = k => retK(r, k);
+    const verdict = isNum(r[L]) && isNum(m50[L]) && isNum(m200[L]) ? (r[L] > m50[L] && m50[L] > m200[L] ? "Outperforming – rising relative trend" : r[L] < m50[L] && m50[L] < m200[L] ? "Underperforming – falling relative trend" : r[L] > m50[L] ? "Improving – above 50-day average" : "Fading – below 50-day average") : "–";
+    stats.push({ name: idName(id), col: col[i], now: r[L], c1m: ch(21), c3m: ch(63), c6m: ch(126), c1y: ch(252), v50: isNum(m50[L]) ? (r[L] / m50[L] - 1) * 100 : null, v200: isNum(m200[L]) ? (r[L] / m200[L] - 1) * 100 : null,
+      pos: hi > lo ? (r[L] - lo) / (hi - lo) * 100 : null, hiD: hiI != null ? D.dates[hiI] : null, verdict });
+    if (!rebase && s.sma) {
+      series.push({ name: "50-day SMA", type: "line", data: m50.slice(s0).map(v => isNum(v) ? +v.toPrecision(6) : null), showSymbol: false, lineStyle: { width: 1.2, color: col[1] }, itemStyle: { color: col[1] } });
+      series.push({ name: "200-day SMA", type: "line", data: m200.slice(s0).map(v => isNum(v) ? +v.toPrecision(6) : null), showSymbol: false, lineStyle: { width: 1.2, color: col[3] }, itemStyle: { color: col[3] } });
+    }
+  });
+  const single = s.nums.length === 1;
+  if (single) {
+    const p = seriesOf(s.nums[0]), r = den ? ratioArr(p, den) : p;
+    series.push({ name: "RSI(14) of ratio", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: rsiArr(r).slice(s0).map(v => isNum(v) ? +v.toFixed(1) : null), showSymbol: false, lineStyle: { width: 1.5, color: col[6] }, itemStyle: { color: col[6] },
+      markLine: { silent: true, symbol: "none", lineStyle: { color: B.t.axis, type: "solid" }, label: { color: B.t.muted, fontSize: 10 }, data: [{ yAxis: 30 }, { yAxis: 50 }, { yAxis: 70 }] } });
+  }
+  $("#raTitle").innerHTML = `${esc(s.nums.map(idName).join(", "))}${den ? " ÷ " + esc(idName(s.den)) : ""} <span class="sub">${rebase ? "rebased to 100 at the start of the range" : den ? "ratio – rising line = numerator outperforming" : "price"}</span>`;
+  c.setOption({
+    textStyle: B.textStyle, animation: false, axisPointer: { link: [{ xAxisIndex: "all" }] },
+    legend: B.legend({ top: 0 }),
+    grid: single ? [{ left: 64, right: 24, top: 34, height: "62%" }, { left: 64, right: 24, top: "78%", height: "14%" }] : [{ left: 64, right: 24, top: 34, bottom: 40 }],
+    xAxis: (single ? [0, 1] : [0]).map(i => B.axis({ type: "category", gridIndex: i, data: xs, boundaryGap: false, splitLine: { show: false }, axisLabel: { show: i === (single ? 1 : 0), color: B.t.muted, fontSize: 10, formatter: dateFmt } })),
+    yAxis: (single ? [0, 1] : [0]).map(i => B.axis(i === 0 ? { gridIndex: 0, scale: true, axisLabel: { color: B.t.muted, fontSize: 11, formatter: v => rebase ? v.toFixed(0) : sig4(v) } } : { gridIndex: 1, min: 0, max: 100, interval: 50 })),
+    tooltip: B.tooltip({ trigger: "axis", valueFormatter: v => sig4(v) }),
+    dataZoom: [{ type: "inside", xAxisIndex: single ? [0, 1] : [0] }],
+    series,
+  }, true);
+  table($("#raStats"), [
+    { k: "name", label: "Numerator", cls: "l", f: r => `<span style="display:inline-block;width:10px;height:3px;background:${r.col};margin-right:6px;vertical-align:middle"></span><b>${esc(r.name)}</b>` },
+    { k: "now", label: den ? "Ratio" : "Price", f: r => sig4(r.now) },
+    { k: "c1m", label: "1M", f: r => pct(r.c1m) }, { k: "c3m", label: "3M", f: r => pct(r.c3m) }, { k: "c6m", label: "6M", f: r => pct(r.c6m) }, { k: "c1y", label: "1Y", f: r => pct(r.c1y) },
+    { k: "v50", label: "vs 50 SMA", f: r => pct(r.v50) }, { k: "v200", label: "vs 200 SMA", f: r => pct(r.v200) },
+    { k: "pos", label: "In 52W range", title: "0% = at the 52-week low of the ratio, 100% = at the high", f: r => isNum(r.pos) ? r.pos.toFixed(0) + "%" : "–" },
+    { k: "hiD", label: "52W high on", f: r => r.hiD ? dateFmt(r.hiD) : "–" },
+    { k: "verdict", label: "Relative trend", cls: "l", f: r => esc(r.verdict) },
+  ], stats, {});
+}
+App.renderers.ratio = function () {
+  raRender();
+  if (RA.bound) return; RA.bound = true;
+  const s = RA.s, save = () => { LS.set("ra", s); raRender(); };
+  const add = () => { const id = parseInstrument($("#raNum").value); if (!id) { $("#raNum").style.borderColor = "var(--neg)"; return; } $("#raNum").style.borderColor = ""; if (!s.nums.includes(id)) s.nums.push(id); $("#raNum").value = ""; save(); };
+  $("#raAdd").onclick = add; $("#raNum").onkeydown = e => { if (e.key === "Enter") add(); };
+  $("#raDen").onchange = e => { const v = e.target.value.trim(); if (!v) { s.den = null; save(); return; } const id = parseInstrument(v); if (id) { s.den = id; save(); } else e.target.style.borderColor = "var(--neg)"; };
+  $$("#raRange button").forEach(b => b.onclick = () => { s.range = b.dataset.v === "all" ? "all" : +b.dataset.v; save(); });
+  $$("#raMode button").forEach(b => b.onclick = () => { s.mode = b.dataset.v; save(); });
+  $("#raSma").onchange = e => { s.sma = e.target.checked; save(); };
+  whenLoaded("series", instrumentList);
+};
+
+/* ============================================================ MARKET BREADTH */
+const BRV = { s: Object.assign({ uni: "ALL", idx: "", range: 252 }, LS.get("br", {})) };
+function brIndexFor(code) { if (hasIdx(code)) return code; if (code === "ALL") return hasIdx("NIFTYTOTALMARKET") ? "NIFTYTOTALMARKET" : "NIFTY500"; return defaultBench(); }
+function brArr(u, k) { return u.data[k].map(v => v == null ? null : v / 10); }
+function zweigEma(u) {
+  const r = u.data.adv.map((a, i) => { const t = a + u.data.dec[i]; return t > 0 ? a / t : null; });
+  return ema(r, 2 / 11);
+}
+function mcclellan(u) {
+  const rana = u.data.adv.map((a, i) => { const t = a + u.data.dec[i]; return t > 0 ? (a - u.data.dec[i]) / t * 1000 : null; });
+  const e19 = ema(rana, 0.1), e39 = ema(rana, 0.05);
+  const osc = e19.map((v, i) => isNum(v) && isNum(e39[i]) ? v - e39[i] : null);
+  let s = 0; const sum = osc.map(v => { if (isNum(v)) s += v; return s; });
+  return { osc, sum };
+}
+function lastOf(a, back = 0) { let n = 0; for (let i = a.length - 1; i >= 0; i--) if (isNum(a[i])) { if (n === back) return a[i]; n++; } return null; }
+function brChart(id, u, idxCode, s0, panels) {
+  // panels: [{name, height, series:[{name,data,type,color,bars?}], zones?, min?, max?}]
+  const B = base(), xs = D.dates.slice(BR.start + s0);
+  const ps = seriesOf("I:" + idxCode), price = ps ? ps.slice(BR.start + s0) : null;
+  const all = (price ? [{ name: idxLabel(idxCode), height: 0.24, series: [{ name: idxLabel(idxCode), data: price, color: B.t.text2 }] }] : []).concat(panels);
+  const total = all.reduce((a, p) => a + p.height, 0), TOP = 9, BOT = 7, GAP = 6;
+  const avail = 100 - TOP - BOT - (all.length - 1) * GAP;
+  let y = TOP; const grids = [], xAxes = [], yAxes = [], series = [];
+  all.forEach((p, gi) => {
+    const hPct = (p.height / total) * avail;
+    grids.push({ left: 54, right: 18, top: y.toFixed(2) + "%", height: hPct.toFixed(2) + "%" });
+    y += hPct + GAP;
+    xAxes.push(B.axis({ type: "category", gridIndex: gi, data: xs, boundaryGap: p.series.some(q => q.type === "bar"), splitLine: { show: false }, axisLabel: { show: gi === all.length - 1, color: B.t.muted, fontSize: 10, formatter: dateFmt } }));
+    yAxes.push(B.axis({ gridIndex: gi, scale: gi === 0 || p.min == null, min: p.min, max: p.max, splitNumber: gi === 0 ? 2 : 3, interval: p.min === 0 && p.max === 100 ? 25 : undefined, axisLabel: { color: B.t.muted, fontSize: 10, formatter: v => Math.abs(v) >= 10000 ? (v / 1000).toFixed(1) + "k" : +v.toFixed(3) } }));
+    p.series.forEach(q => series.push({
+      name: q.name, type: q.type || "line", xAxisIndex: gi, yAxisIndex: gi, showSymbol: false,
+      data: q.bars ? q.data.map(v => ({ value: isNum(v) ? +v.toFixed(2) : null, itemStyle: { color: isNum(v) && v >= 0 ? css("--pos") : css("--neg") } })) : q.data.map(v => isNum(v) ? +v.toFixed(3) : null),
+      lineStyle: { width: gi === 0 ? 1.4 : 1.8, color: q.color }, itemStyle: { color: q.color || (q.bars ? css(q.neg ? "--neg" : "--pos") : undefined) }, barMaxWidth: 4, barGap: "-100%",
+      markArea: q.zones ? { silent: true, itemStyle: { color: css("--soft") }, data: q.zones.map(z => [{ yAxis: z[0] }, { yAxis: z[1] }]) } : undefined,
+      markLine: q.lines ? { silent: true, symbol: "none", lineStyle: { color: B.t.axis, type: "solid" }, label: { color: B.t.muted, fontSize: 10, formatter: "{c}", position: "insideEndTop" }, data: q.lines.map(v => ({ yAxis: v })) } : undefined,
+      markPoint: q.points ? { symbol: "pin", symbolSize: 24, itemStyle: { color: css("--s1") }, label: { show: false }, data: q.points } : undefined,
+    }));
+  });
+  const c = chart(id);
+  c.setOption({
+    textStyle: B.textStyle, animation: false, axisPointer: { link: [{ xAxisIndex: "all" }] },
+    legend: B.legend({ top: 0, data: series.map(q => q.name) }),
+    grid: grids, xAxis: xAxes, yAxis: yAxes, series,
+    tooltip: B.tooltip({ trigger: "axis", valueFormatter: v => isNum(v) ? (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(1)) : "–" }),
+    dataZoom: [{ type: "inside", xAxisIndex: all.map((_, i) => i) }],
+  }, true);
+}
+function brRender() {
+  if (!loaded.breadth) { $("#brGrid").innerHTML = '<div class="loading">Loading breadth data…</div>'; whenLoaded("breadth", () => { if (App.tab === "breadth") brRender(); }); return; }
+  const s = BRV.s;
+  if (!BR.map[s.uni]) s.uni = BR.map.ALL ? "ALL" : BR.universes[0].code;
+  fillSelect($("#brUni"), BR.universes.map(u => ({ v: u.code, l: `${u.label} (${u.n})` })), s.uni);
+  const idxCode = s.idx && hasIdx(s.idx) ? s.idx : brIndexFor(s.uni);
+  fillSelect($("#brIdx"), indexOptions(["broad", "sector", "thematic"]), idxCode);
+  $("#brIdx").parentElement.style.display = D.idx.codes.length ? "" : "none";
+  $$("#brRange button").forEach(b => b.classList.toggle("on", String(b.dataset.v) === String(s.range)));
+  const u = BR.map[s.uni], len = u.data.adv.length, s0 = s.range === "all" ? 0 : Math.max(0, len - s.range);
+  const col = seriesColors(), cut = a => a.slice(s0);
+  const a200 = brArr(u, "a200"), a50 = brArr(u, "a50"), mc = mcclellan(u), zw = zweigEma(u);
+  const adv = lastOf(u.data.adv), dec = lastOf(u.data.dec);
+  const thrust = (() => { for (let i = zw.length - 1; i >= Math.max(10, zw.length - 15); i--) { if (zw[i] > 0.615) { for (let j = i - 1; j >= i - 10; j--) if (zw[j] < 0.40) return true; } } return false; })();
+  const tile = (k, v, sub) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const chg = (a, back) => { const x = lastOf(a), y = lastOf(a, back); return isNum(x) && isNum(y) ? `${x - y >= 0 ? "+" : ""}${(x - y).toFixed(1)} pts vs 1W ago` : ""; };
+  $("#brTiles").innerHTML = [
+    tile("Above 200-day SMA", isNum(lastOf(a200)) ? lastOf(a200).toFixed(1) + "%" : "–", chg(a200, 5)),
+    tile("Above 50-day SMA", isNum(lastOf(a50)) ? lastOf(a50).toFixed(1) + "%" : "–", chg(a50, 5)),
+    tile("Advances : declines", `${adv} : ${dec}`, `ratio ${dec ? (adv / dec).toFixed(2) : "–"} · ${lastOf(u.data.unch)} unchanged`),
+    tile("At 52-week high / low", `${(lastOf(brArr(u, "h52")) || 0).toFixed(1)}% / ${(lastOf(brArr(u, "l52")) || 0).toFixed(1)}%`, "share of stocks"),
+    tile("McClellan Oscillator", isNum(lastOf(mc.osc)) ? lastOf(mc.osc).toFixed(0) : "–", `Summation ${isNum(lastOf(mc.sum)) ? lastOf(mc.sum).toFixed(0) : "–"} (ratio-adjusted)`),
+    tile("Zweig breadth thrust", thrust ? '<span class="pos">Triggered</span>' : (isNum(lastOf(zw)) ? lastOf(zw).toFixed(3) : "–"), thrust ? "10-day EMA rose from < 0.40 to > 0.615 within 10 days" : "10-day EMA of advancers ÷ (adv + dec)"),
+  ].join("");
+  const cards = [
+    ["brC1", "% of stocks above moving averages", "Diffusion: above 20 / 50 / 100 / 200-day SMA"],
+    ["brC2", "Momentum diffusion", "% with RSI(14) ≥ 50, MACD above signal, RMI(20,5) > 50"],
+    ["brC3", "Trend strength", "% with ADX(14) ≥ 25 – trending vs range-bound market"],
+    ["brC4", "Periodical highs", "% of stocks at a new 1-month, 3-month and 52-week high"],
+    ["brC5", "Periodical lows", "% of stocks at a new 1-month, 3-month and 52-week low"],
+    ["brC6", "Advance / decline line", "cumulative advancers minus decliners, and daily net advances"],
+    ["brC7", "McClellan Oscillator & Summation Index", "ratio-adjusted (19/39-day EMAs of net advances ÷ total)"],
+    ["brC8", "Zweig breadth thrust", "10-day EMA of advancers ÷ (advancers + decliners); pins mark thrust signals"],
+    ["brC9", "4% movers", "stocks up ≥ 4% (above zero) and down ≥ 4% (below zero) each day"],
+  ];
+  $("#brGrid").innerHTML = cards.map(([id, t, sub]) => `<div class="card"><div class="ch">${t} <span class="sub">${sub}</span></div><div class="chart" id="${id}" style="height:430px"></div></div>`).join("");
+  const z = [[80, 100], [0, 20]];
+  brChart("brC1", u, idxCode, s0, [{ name: "%", height: 0.76, min: 0, max: 100, series: [
+    { name: "> 20 SMA", data: cut(brArr(u, "a20")), color: col[0], zones: z }, { name: "> 50 SMA", data: cut(a50), color: col[1] },
+    { name: "> 100 SMA", data: cut(brArr(u, "a100")), color: col[2] }, { name: "> 200 SMA", data: cut(a200), color: col[3] }] }]);
+  brChart("brC2", u, idxCode, s0, [{ name: "%", height: 0.76, min: 0, max: 100, series: [
+    { name: "RSI ≥ 50", data: cut(brArr(u, "rsi")), color: col[0], zones: z }, { name: "MACD buy", data: cut(brArr(u, "macd")), color: col[1] }, { name: "RMI > 50", data: cut(brArr(u, "rmi")), color: col[2] }] }]);
+  brChart("brC3", u, idxCode, s0, [{ name: "%", height: 0.76, min: 0, max: 100, series: [{ name: "ADX ≥ 25", data: cut(brArr(u, "adx")), color: col[0], lines: [50] }] }]);
+  brChart("brC4", u, idxCode, s0, [{ name: "%", height: 0.76, min: 0, series: [
+    { name: "1-month high", data: cut(brArr(u, "h1m")), color: col[0] }, { name: "3-month high", data: cut(brArr(u, "h3m")), color: col[1] }, { name: "52-week high", data: cut(brArr(u, "h52")), color: col[2] }] }]);
+  brChart("brC5", u, idxCode, s0, [{ name: "%", height: 0.76, min: 0, series: [
+    { name: "1-month low", data: cut(brArr(u, "l1m")), color: col[0] }, { name: "3-month low", data: cut(brArr(u, "l3m")), color: col[1] }, { name: "52-week low", data: cut(brArr(u, "l52")), color: col[2] }] }]);
+  const net = u.data.adv.map((a, i) => a - u.data.dec[i]); let cum = 0; const adl = net.map(v => (cum += v));
+  brChart("brC6", u, idxCode, s0, [{ name: "A/D line", height: 0.42, series: [{ name: "A/D line", data: cut(adl), color: col[0] }] },
+    { name: "Net adv.", height: 0.34, series: [{ name: "Net advances", data: cut(net), type: "bar", bars: true }] }]);
+  brChart("brC7", u, idxCode, s0, [{ name: "Oscillator", height: 0.38, series: [{ name: "McClellan Oscillator", data: cut(mc.osc), type: "bar", bars: true }] },
+    { name: "Summation", height: 0.38, series: [{ name: "Summation Index", data: cut(mc.sum), color: col[6] }] }]);
+  const pts = []; let lastSig = -99;
+  for (let i = Math.max(10, s0); i < zw.length; i++) if (zw[i] > 0.615 && zw[i - 1] <= 0.615 && i - lastSig > 20) { for (let j = i - 1; j >= i - 10; j--) if (zw[j] < 0.40) { pts.push({ coord: [D.dates[BR.start + i], +zw[i].toFixed(3)] }); lastSig = i; break; } }
+  brChart("brC8", u, idxCode, s0, [{ name: "EMA", height: 0.76, min: 0.2, max: 0.8, series: [{ name: "Breadth thrust EMA(10)", data: cut(zw), color: col[0], lines: [0.4, 0.615], points: pts }] }]);
+  brChart("brC9", u, idxCode, s0, [{ name: "Stocks", height: 0.76, series: [
+    { name: "Up ≥ 4%", data: cut(u.data.up4), type: "bar", bars: true }, { name: "Down ≥ 4%", data: cut(u.data.dn4.map(v => -v)), type: "bar", bars: true, neg: true }] }]);
+  // sector participation table
+  const secs = BR.universes.filter(x => hasIdx(x.code) && ["sector", "thematic"].includes(D.idxMap[x.code].cat));
+  const shade = v => isNum(v) ? `background:rgba(42,120,214,${(0.05 + 0.4 * v / 100).toFixed(2)})` : "";
+  const cell = v => `<span>${isNum(v) ? v.toFixed(0) + "%" : "–"}</span>`;
+  const rows = secs.map(x => { const L = k => lastOf(brArr(x, k)); return { code: x.code, name: x.label, n: x.n, a20: L("a20"), a50: L("a50"), a200: L("a200"), rsi: L("rsi"), macd: L("macd"), adx: L("adx"), h52: L("h52"), l52: L("l52"), adv: lastOf(x.data.adv), dec: lastOf(x.data.dec) }; });
+  const pc = k => ({ k, label: { a20: "> 20 SMA", a50: "> 50 SMA", a200: "> 200 SMA", rsi: "RSI ≥ 50", macd: "MACD buy", adx: "ADX ≥ 25", h52: "52W high", l52: "52W low" }[k], f: r => `<div style="${k === "l52" ? "" : shade(r[k])};padding:2px 6px;border-radius:4px">${cell(r[k])}</div>` });
+  table($("#brSecTable"), [{ k: "name", label: "Index", cls: "l", asc: true, f: r => `<b>${esc(r.name)}</b> <span class="sub">${r.n}</span>` },
+    pc("a20"), pc("a50"), pc("a200"), pc("rsi"), pc("macd"), pc("adx"), pc("h52"), pc("l52"),
+    { k: "adv", label: "Adv : Dec", sv: r => r.adv - r.dec, f: r => `${r.adv} : ${r.dec}` }], rows,
+    { state: BRV.tbl || (BRV.tbl = { key: "a50", dir: -1 }), onRow: r => { s.uni = r.code; s.idx = ""; LS.set("br", s); brRender(); window.scrollTo({ top: 0, behavior: "smooth" }); } });
+}
+App.renderers.breadth = function () {
+  brRender();
+  if (BRV.bound) return; BRV.bound = true;
+  const s = BRV.s, save = () => { LS.set("br", s); brRender(); };
+  $("#brUni").onchange = e => { s.uni = e.target.value; s.idx = ""; save(); };
+  $("#brIdx").onchange = e => { s.idx = e.target.value; save(); };
+  $$("#brRange button").forEach(b => b.onclick = () => { s.range = b.dataset.v === "all" ? "all" : +b.dataset.v; save(); });
+};
+
+/* ============================================================ HEATMAP */
+const HM = { s: Object.assign({ uni: "NIFTY500", metric: "chg", group: "nse_ind" }, LS.get("hm", {})) };
+function mix(a, b, t) { const pa = a.match(/\w\w/g).map(h => parseInt(h, 16)), pb = b.match(/\w\w/g).map(h => parseInt(h, 16)); return "#" + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, "0")).join(""); }
+function divColor(v, range) {
+  const dark = document.documentElement.dataset.theme === "dark", br = document.documentElement.dataset.updown === "br";
+  const mid = dark ? "#383835" : "#e9e8e3";
+  const up = br ? (dark ? "#3987e5" : "#1c5cab") : (dark ? "#16a34a" : "#0f8a3c"), dn = dark ? "#e05252" : "#c62828";
+  if (!isNum(v)) return { bg: mid, fg: dark ? "#c3c2b7" : "#52514e" };
+  const t = Math.max(-1, Math.min(1, v / range));
+  const bg = t >= 0 ? mix(mid.slice(1), up.slice(1), Math.pow(t, 0.8)) : mix(mid.slice(1), dn.slice(1), Math.pow(-t, 0.8));
+  return { bg, fg: Math.abs(t) > 0.45 || dark ? "#ffffff" : "#0b0b0b" };
+}
+function hmRender() {
+  const s = HM.s, B = base();
+  fillSelect($("#hmUni"), stockUniverseOptions(true).map(o => o.v === "ALL" ? { v: "ALL", l: "All NSE (top 600 by market cap)" } : o), s.uni);
+  $("#hmMetric").value = s.metric; $("#hmGroup").value = s.group; $("#hmColors").value = LS.get("updown", "gr");
+  let stocks = universeSyms(s.uni).map(x => D.bySym[x]).filter(o => o && isNum(o.mcap) && !o.sme);
+  stocks.sort((a, z) => z.mcap - a.mcap); if (stocks.length > 600) stocks = stocks.slice(0, 600);
+  const rng = { chg: 3, r1w: 6, r1m: 12, r3m: 25, r6m: 40, rs: 49, mrs500: 20 }[s.metric];
+  const val = o => s.metric === "rs" ? (isNum(o.rs) ? o.rs - 50 : null) : o[s.metric];
+  const label = o => s.metric === "rs" ? (isNum(o.rs) ? String(o.rs) : "–") : isNum(o[s.metric]) ? (o[s.metric] > 0 ? "+" : "") + o[s.metric].toFixed(1) + "%" : "–";
+  const gname = o => s.group === "sec" ? (o.sec ? idxLabel(o.sec) : "Other") : s.group === "sector" ? (o.sector || "Other") : grpOf(o);
+  const groups = {};
+  stocks.forEach(o => { const g = gname(o); (groups[g] = groups[g] || []).push(o); });
+  const data = Object.entries(groups).map(([g, arr]) => ({
+    name: g, value: arr.reduce((a, o) => a + o.mcap, 0),
+    children: arr.map(o => { const c = divColor(val(o), rng); return { name: o.sym, value: o.mcap, sym: o.sym, lbl: label(o), itemStyle: { color: c.bg }, label: { color: c.fg } }; }),
+  })).sort((a, z) => z.value - a.value);
+  const c = chart("hmChart");
+  c.setOption({
+    textStyle: B.textStyle, animation: false,
+    tooltip: B.tooltip({ formatter: p => { const o = D.bySym[p.data.sym]; if (!o) return `<b>${esc(p.name)}</b>`;
+      return `<b>${esc(o.sym)}</b> ${esc(o.name)}<br>${esc(gname(o))}<br>1D ${o.chg ?? "–"}% · 1M ${o.r1m ?? "–"}% · 3M ${o.r3m ?? "–"}%<br>RS ${o.rs ?? "–"} · Mansfield ${o.mrs500 ?? "–"}<br>Mcap ₹${(o.mcap || 0).toLocaleString("en-IN")} Cr`; } }),
+    series: [{
+      type: "treemap", data, roam: false, nodeClick: false, breadcrumb: { show: false }, width: "100%", height: "100%", top: 0, left: 0, sort: "desc",
+      upperLabel: { show: true, height: 18, color: B.t.text, fontSize: 11, fontWeight: 600, overflow: "truncate" },
+      label: { show: true, formatter: p => p.data.lbl ? `${p.name}\n${p.data.lbl}` : p.name, fontSize: 11, lineHeight: 13, overflow: "truncate" },
+      levels: [
+        { itemStyle: { borderWidth: 0, gapWidth: 4 }, upperLabel: { show: false } },
+        { itemStyle: { borderColor: css("--soft"), borderWidth: 3, gapWidth: 1 }, upperLabel: { show: true } },
+        { itemStyle: { borderColor: B.t.surface, borderWidth: 0.5, gapWidth: 0 }, upperLabel: { show: false } },
+      ],
+    }],
+  }, true);
+  c.off("click"); c.on("click", p => { if (p.data && p.data.sym) openStock(p.data.sym); });
+}
+App.renderers.heatmap = function () {
+  hmRender();
+  if (HM.bound) return; HM.bound = true;
+  const s = HM.s, save = () => { LS.set("hm", s); hmRender(); };
+  $("#hmUni").onchange = e => { s.uni = e.target.value; save(); };
+  $("#hmMetric").onchange = e => { s.metric = e.target.value; save(); };
+  $("#hmGroup").onchange = e => { s.group = e.target.value; save(); };
+  $("#hmColors").onchange = e => { LS.set("updown", e.target.value); applyUpDown(); rerenderAll(); };
+};
+function applyUpDown() { const v = LS.get("updown", "gr"); if (v === "br") document.documentElement.dataset.updown = "br"; else delete document.documentElement.dataset.updown; }
+
+/* ============================================================ OVERVIEW */
+function ovRender() {
+  const B = base(), L = D.N - 1, n50 = seriesOf("I:" + defaultBench());
+  const tiles = [];
+  const idxTile = code => { const c = seriesOf("I:" + code); if (!c) return; const m50 = sma(c, 50)[L], m200 = sma(c, 200)[L];
+    tiles.push(`<div class="tile"><div class="k">${esc(idxLabel(code))}</div><div class="v">${fmt(c[L], 0)}</div><div class="s">${pct(retK(c, 1), 2)} today · ${isNum(m50) ? (c[L] > m50 ? "above" : "below") + " 50 DMA" : ""}${isNum(m200) ? " · " + (c[L] > m200 ? "above" : "below") + " 200 DMA" : ""}</div></div>`); };
+  ["NIFTY50", "NIFTY500", "NIFTYMIDCAP150", "NIFTYSMALLCAP250"].filter(hasIdx).forEach(idxTile);
+  if (hasIdx("NIFTYMIDCAP150") && hasIdx("NIFTY50")) { const r = relRet(seriesOf("I:NIFTYMIDCAP150"), n50, 63);
+    tiles.push(`<div class="tile"><div class="k">Midcaps vs Nifty 50 (3M)</div><div class="v">${pct(r)}</div><div class="s">${isNum(r) ? (r > 0 ? "broad market leading – risk-on" : "large caps leading – defensive") : ""}</div></div>`); }
+  if (hasIdx("INDIAVIX")) { const v = seriesOf("I:INDIAVIX"); tiles.push(`<div class="tile"><div class="k">India VIX</div><div class="v">${fmt(v[L], 2)}</div><div class="s">${pct(retK(v, 1), 1)} today</div></div>`); }
+  $("#ovTiles").innerHTML = tiles.join("");
+  // quadrant columns: sectoral indices, weekly vs Nifty 50
+  const codes = idxByCat("sector").filter(c => c !== defaultBench());
+  const qs = codes.map(c => Object.assign({ c }, quadSeries("I:" + c, "I:" + defaultBench(), "W", RRG.s.nW || 10) || {})).filter(x => x.q);
+  $("#ovRrgSub").textContent = `${qs.length} sectoral indices · weekly vs ${idxLabel(defaultBench())}`;
+  $("#ovQuad").innerHTML = ["L", "I", "W", "G"].map(q => `<div class="qcol"><h4>${qChip(q)}</h4><div class="list">${qs.filter(x => x.q === q).sort((a, z) => Math.hypot(z.r - 100, z.m - 100) - Math.hypot(a.r - 100, a.m - 100))
+    .map(x => `<div class="li" data-ld="${x.c}"><span>${esc(idxLabel(x.c))}</span>${x.qp && x.qp !== x.q ? '<span class="flag">new</span>' : ""}</div>`).join("") || '<span class="sub">none</span>'}</div></div>`).join("");
+  $$("#ovQuad [data-ld]").forEach(el => el.onclick = () => { LD.s.idx = el.dataset.ld; LS.set("ld", LD.s); App.rendered.leaders = false; setTab("leaders"); });
+  // alerts across sectoral + thematic
+  const all = idxByCat("sector").concat(idxByCat("thematic")).map(c => Object.assign({ c }, quadSeries("I:" + c, "I:" + defaultBench(), "W", RRG.s.nW || 10) || {})).filter(x => x.q && x.qp && x.q !== x.qp);
+  const prio = { "I>L": 0, "G>I": 1, "L>W": 2, "W>G": 3 };
+  all.sort((a, z) => (prio[a.qp + ">" + a.q] ?? 9) - (prio[z.qp + ">" + z.q] ?? 9));
+  const meaning = { "I>L": "leadership confirmed", "G>I": "early turn up", "L>W": "momentum fading", "W>G": "lost leadership", "W>L": "re-accelerating", "I>G": "failed turn" };
+  $("#ovAlerts").innerHTML = all.length ? `<div class="list">${all.slice(0, 14).map(x => `<div class="li" data-ld="${x.c}"><span><b>${esc(idxLabel(x.c))}</b></span><span>${qChip(x.qp)} → ${qChip(x.q)} <span class="sub">${meaning[x.qp + ">" + x.q] || ""}</span></span></div>`).join("")}</div>`
+    : '<div class="empty">No sector changed quadrant this week.</div>';
+  $$("#ovAlerts [data-ld]").forEach(el => el.onclick = () => { LD.s.idx = el.dataset.ld; LS.set("ld", LD.s); App.rendered.leaders = false; setTab("leaders"); });
+  // sector bar
+  const bars = D.meta.core.concat(idxByCat("sector")).filter((c, i, a) => a.indexOf(c) === i && c !== defaultBench())
+    .map(c => ({ c, v: relRet(seriesOf("I:" + c), n50, 63) })).filter(x => isNum(x.v)).sort((a, z) => a.v - z.v);
+  const ch = chart("ovSecBar");
+  $("#ovSecBar").style.height = Math.max(330, bars.length * 17 + 40) + "px"; ch.resize();
+  ch.setOption({
+    textStyle: B.textStyle, animation: false, grid: { left: 150, right: 30, top: 8, bottom: 24 },
+    xAxis: B.axis({ type: "value", axisLabel: { color: B.t.muted, formatter: v => v + "%" } }),
+    yAxis: B.axis({ type: "category", data: bars.map(x => idxLabel(x.c)), splitLine: { show: false }, axisLabel: { color: B.t.text2, fontSize: 11 } }),
+    tooltip: B.tooltip({ trigger: "axis", axisPointer: { type: "shadow" }, formatter: p => `<b>${esc(p[0].name)}</b><br>3M vs ${esc(idxLabel(defaultBench()))}: <b>${p[0].value.toFixed(1)}%</b>` }),
+    series: [{ type: "bar", barMaxWidth: 11, data: bars.map(x => ({ value: +x.v.toFixed(2), itemStyle: { color: x.v >= 0 ? css("--pos") : css("--neg"), borderRadius: x.v >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) }],
+  }, true);
+  ch.off("click"); ch.on("click", p => { const x = bars[p.dataIndex]; if (x) { LD.s.idx = x.c; LS.set("ld", LD.s); App.rendered.leaders = false; setTab("leaders"); } });
+  // breadth
+  whenLoaded("breadth", () => {
+    const u = BR.map.ALL || BR.universes[0]; if (!u) return;
+    const len = u.data.adv.length, s0 = Math.max(0, len - 252), col = seriesColors();
+    brChart("ovBreadth", u, brIndexFor(u.code), s0, [{ name: "%", height: 0.72, min: 0, max: 100, series: [
+      { name: "> 50-day SMA", data: brArr(u, "a50").slice(s0), color: col[0], zones: [[80, 100], [0, 20]] }, { name: "> 200-day SMA", data: brArr(u, "a200").slice(s0), color: col[1] }] }]);
+    const a2 = lastOf(brArr(u, "a200"));
+    tiles.push(`<div class="tile"><div class="k">NSE stocks above 200 DMA</div><div class="v">${isNum(a2) ? a2.toFixed(0) + "%" : "–"}</div><div class="s">${lastOf(u.data.adv)} advancing · ${lastOf(u.data.dec)} declining today</div></div>`);
+    $("#ovTiles").innerHTML = tiles.join("");
+  });
+  // leader tables
+  const n500 = new Set(D.members.NIFTY500 || D.S.map(s => s.sym));
+  const cols = [{ k: "sym", label: "Stock", cls: "l", asc: true, f: r => `<span class="symb">${esc(r.sym)}</span><span class="nm">${esc(grpOf(r))}</span>` },
+    { k: "rs", label: "RS", f: r => rsBadge(r.rs) }, { k: "r3m", label: "3M", f: r => pct(r.r3m) }, { k: "off_hi", label: "From high", f: r => pct(r.off_hi) },
+    { k: "stage", label: "Stage", f: r => r.stage || "–" }, { k: "q500", label: "RRG", cls: "l", f: r => qChip(r.q500) }];
+  table($("#ovLeaders"), cols, D.S.filter(o => n500.has(o.sym) && o.rs >= 90 && o.rsnh), { sortKey: "rs", limit: 15, onRow: r => openStock(r.sym), empty: "No Nifty 500 stock has RS ≥ 90 with its RS line at a 52-week high today." });
+  table($("#ovBlue"), cols, D.S.filter(o => (n500.has(o.sym) || (o.val_cr || 0) >= 10) && o.rsnh_bp), { sortKey: "rs", limit: 15, onRow: r => openStock(r.sym), empty: "No RS-new-high-before-price setups today." });
+}
+App.renderers.overview = ovRender;
+
+/* ============================================================ METHODOLOGY */
+App.renderers.method = function () {
+  const m = D.meta;
+  $("#methodBody").innerHTML = `
+  <h3>What this page does</h3>
+  <p>It tracks <b>where money is rotating</b> across NSE sectors, themes and stocks, using the same relative-strength tools that institutional desks use: Relative Rotation Graphs (RRG), ratio charts, IBD-style RS Ratings, Mansfield relative strength, Weinstein stages, Minervini's trend template and market-breadth diffusion indicators. Data: ${esc(m.sources.stocks)}; ${esc(m.sources.indices)}; history from ${dateFmt(m.history_from)}.</p>
+  <h3>Relative Rotation Graph (RRG)</h3>
+  <p>Each instrument is compared with a benchmark. <code>rs = price ÷ benchmark</code>. The x-axis, <b>RS-Ratio</b>, measures the trend of relative strength; the y-axis, <b>RS-Momentum</b>, measures the rate of change of that trend. Both are centred on 100.</p>
+  <p><code>RS-Ratio = 100 × WMA( rs ÷ WMA(rs, n), n )</code> &nbsp; <code>RS-Momentum = 100 × RS-Ratio ÷ WMA(RS-Ratio, n)</code> (WMA = linearly weighted moving average, n = lookback; default 10 weeks or 20 days).</p>
+  <p>Julius de Kempenaer's exact JdK formulas are proprietary; this is a public smoothed approximation (the same family used by several open-source RRG scripts). It produces the characteristic clockwise rotation; values can differ slightly from Bloomberg/StockCharts/Strike. Quadrants: <span class="q L">Leading</span> both ≥ 100 · <span class="q W">Weakening</span> ratio ≥ 100, momentum &lt; 100 · <span class="q G">Lagging</span> both &lt; 100 · <span class="q I">Improving</span> ratio &lt; 100, momentum ≥ 100. <b>Heading</b> is the direction of the last move (0–90° = north-east, the best), <b>Distance</b> is how far from the centre a point sits (bigger = stronger relative trend).</p>
+  <p>How to use it: start with sectors to see the broad rotation, then open the constituents of a Leading or Improving sector to find its leaders. Moves from Improving → Leading that persist are the classic entry signal; Leading → Weakening is an early warning that often comes before price turns.</p>
+  <h3>Ratio charts</h3>
+  <p><code>ratio = A ÷ B</code>. A rising line means A is outperforming B even if both are falling. With several numerators the lines are rebased to 100 at the start of the range so they share one axis. The panel shows the ratio's 50/200-day averages and RSI(14), plus its position in the 52-week range.</p>
+  <h3>Sector rotation table</h3>
+  <p><b>Rotation score</b> = 0.2 × 1-week + 0.3 × 1-month + 0.3 × 3-month + 0.2 × 6-month return relative to the benchmark. Ranks are recomputed every week to show rank changes. The <b>relative-strength matrix</b> (Dorsey Wright-style) pits every index against every other: ✓ when the ratio row ÷ column is above its N-day average. More wins = broader leadership.</p>
+  <h3>Stock relative-strength metrics</h3>
+  <ul>
+    <li><b>RS Rating (1–99)</b>, O'Neil/IBD style: <code>score = 0.4·C/C₆₃ + 0.2·C/C₁₂₆ + 0.2·C/C₁₈₉ + 0.2·C/C₂₅₂</code> (sessions ago), then the percentile rank against all NSE main-board stocks. 99 = top 1%. Stocks with less than a year of history are rated on the quarters they have (marked *). IBD's own ratings are proprietary; this follows the published method.</li>
+    <li><b>RS line &amp; new highs</b>: the RS line is price ÷ Nifty 500. <b>NH</b> = RS line at a 52-week high. <b>BP</b> ("new high before price", O'Neil's blue dot) = RS line made a 52-week high within the last 5 sessions while price is still at least 3% below its own 52-week high – the stock is leading the market before its price breakout, often a sign of institutional accumulation.</li>
+    <li><b>Mansfield RS</b> (Stan Weinstein): <code>(RS ÷ 52-week SMA of RS − 1) × 100</code> on weekly closes. Above 0 = outperforming; rising through 0 is a buy-side confirmation.</li>
+    <li><b>Weinstein stage</b> from the 30-week SMA: 2 = price above a rising average (advancing); 4 = price below a falling average; 1 = basing; 3 = topping. Slope = change of the 30-week SMA over 4 weeks (±1% counts as flat).</li>
+    <li><b>Minervini trend template</b>: 8 rules – price above the 150 &amp; 200-day SMA, 150 above 200, 200-day rising for a month, 50 above 150 &amp; 200, price above 50, ≥ 30% above the 52-week low, within 25% of the 52-week high, RS Rating ≥ 70.</li>
+    <li><b>Up/down volume ratio</b>: volume on up days ÷ volume on down days over 50 sessions (IBD's accumulation measure). <b>Delivery %</b> is NSE's delivery percentage, averaged over 10 sessions.</li>
+  </ul>
+  <h3>Market breadth &amp; diffusion indicators</h3>
+  <ul>
+    <li>% of stocks above their 20/50/100/200-day SMA; % with RSI(14) ≥ 50; % with MACD(12,26,9) above its signal line; % with ADX(14) ≥ 25; % at new 1-month / 3-month / 52-week highs and lows.</li>
+    <li><b>RMI</b>: Strike's "RMI" is its proprietary Rohit Momentum Indicator. This page uses Roger Altman's public <b>Relative Momentum Index</b> (Stocks &amp; Commodities, Feb 1993): an RSI computed on 5-day momentum with 20-day Wilder smoothing; the diffusion counts stocks with RMI &gt; 50.</li>
+    <li><b>Advance/decline line</b> = cumulative (advancers − decliners). <b>McClellan Oscillator</b> = EMA19 − EMA39 of ratio-adjusted net advances <code>(A − D) ÷ (A + D) × 1000</code>; the <b>Summation Index</b> is its running total. <b>Zweig breadth thrust</b>: the 10-day EMA of A ÷ (A + D) rising from below 0.40 to above 0.615 within 10 sessions – a rare, historically bullish signal.</li>
+    <li>Universes use <i>today's</i> index constituents for the whole history (survivorship bias – the past looks a little stronger than it was). "All NSE" covers main-board EQ/BE/BZ stocks that traded in the last 10 sessions.</li>
+  </ul>
+  <h3>Prices, adjustments and refresh</h3>
+  <p>Stock prices come from NSE's official bhavcopy and are back-adjusted for splits and bonuses (same engine as the Camarilla screener). Index values come from NSE's daily index file. During market hours (every 30 minutes) stock prices come from TradingView (~15 min delayed); index values come from TradingView where it carries them (${esc((m.live_indices && m.live_indices.tv || []).join(", ") || "Nifty 50, Bank, IT, 500, Next 50, Midcap 100, Smallcap 100 …")}) and are otherwise <b>estimated</b> from constituents' free-float-weighted moves until NSE's official close arrives after 18:15.</p>
+  <p class="note">Educational analytics, not investment advice. Indicators describe the past; combine them with your own analysis and risk management.</p>`;
+};
+
+/* ============================================================ boot */
+function boot() {
+  if (!window.ROT_DATA) { $("#banner").textContent = "rotation-data.js was not found. Run the GitHub workflow once (Actions → Update screener data → Run workflow) and reload."; $("#status").innerHTML = ""; return; }
+  initData(); applyUpDown(); statusBar();
+  const navTop = () => { if (innerWidth > 700) $("#tabs").style.top = $("header").offsetHeight + "px"; };
+  navTop(); window.addEventListener("resize", debounce(navTop, 100));
+  $$("#tabs button").forEach(b => b.onclick = () => setTab(b.dataset.t));
+  document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) setTab(g.dataset.go); });
+  const themeLbl = () => { $("#btnTheme").textContent = document.documentElement.dataset.theme === "dark" ? "Light" : "Dark"; };
+  themeLbl();
+  $("#btnTheme").onclick = () => { const t = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = t; LS.set("theme", t); themeLbl(); rerenderAll(); };
+  $("#btnReload").onclick = () => location.reload();
+  $("#btnLists").onclick = openLists;
+  window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t && t !== App.tab) setTab(t, false); });
+  setTab((location.hash.slice(1) || LS.get("tab", "overview")), false);
+  loadScript("rotation-series.js", "series", "ROT_SERIES");
+  loadScript("breadth-data.js", "breadth", "BREADTH");
+}
+(function () {
+  const sc = document.createElement("script");
+  sc.src = "rotation-data.js?v=" + Math.floor(Date.now() / 300000);
+  sc.onload = boot; sc.onerror = boot;
+  document.body.appendChild(sc);
+})();
+</script>
+</body>
+</html>
