@@ -403,14 +403,18 @@ def main() -> int:
     now = (dt.datetime.fromisoformat(args.now).replace(tzinfo=IST) if args.now else dt.datetime.now(IST))
     today = now.date()
     start = dt.date.fromisoformat(args.start) if args.start else dt.date(today.year - 1, 1, 1)
+    # The store keeps one extra year (from 1 Jan two years back) for the Sector Rotation page, which
+    # needs >= 1 year of history for 52-week RS lines, RS Ratings and 200-day breadth. The screener
+    # itself still only reads from `start`.
+    keep_from = min(start, dt.date(today.year - 2, 1, 1))
     store = nse.EodStore(Path(args.data))
     session = nse.make_session()
 
     if not args.no_download:
-        nse.update_store(store, start, today, session, workers=args.workers)
-        pruned = store.prune(start)
+        nse.update_store(store, keep_from, today, session, workers=args.workers)
+        pruned = store.prune(keep_from)
         if pruned:
-            log(f"pruned {pruned} file(s) older than {start}")
+            log(f"pruned {pruned} file(s) older than {keep_from}")
     ref = load_reference(session, store.meta, offline=args.no_download)
 
     raw = store.load(start)
