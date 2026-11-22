@@ -47,6 +47,12 @@ jobs:
         continue-on-error: true
         run: python scripts/build_rotation.py
 
+      - name: Build the Smart Money & Institutional page data
+        # Downloads NSE delivery, F&O, participant-OI and deal files (data/sm). A failure here never blocks the
+        # other two pages; smartmoney.html then shows "data not found" until the next good run.
+        continue-on-error: true
+        run: python scripts/build_smartmoney.py
+
       - name: Save new NSE data to the repository
         run: |
           git config user.name "screener-bot"
