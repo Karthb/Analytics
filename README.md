@@ -121,6 +121,39 @@ Notes
 - The store now keeps NSE history from **1 Jan two years back**. The first run after this update
   back-fills that extra year once (about 5 extra minutes).
 
+## 2c. Smart Money & Institutional page
+
+The third page, **`https://<your-github-username>.github.io/<repo>/smartmoney.html`** (linked from both other
+headers), shows where large, delivery-backed money is active. It is built in the same workflow run from NSE's
+own files: delivery (`sec_bhavdata_full`), the F&O bhavcopy, participant-wise open interest, bulk/block deals
+and FII/DII figures.
+
+| Tab | What it shows |
+|---|---|
+| **Dashboard** | Smart-money breadth (buy-side vs sell-side footprints under the Nifty), spikes, accumulation vs distribution, FII long %, FII/DII cash, top footprints, gradual-inflow streaks, strongest accumulation, setups that fired, live heavy-volume movers, sector smart-money map |
+| **SMF Sheet** | The SMF-style grid: every stock × the last 10–60 sessions, coloured like the demo sheet (red < 3 < green, ≥ 8 bold) with ▲/▼ buy/sell-bias marks, sortable by any day, CSV export in the same layout |
+| **SMF Screener** | Presets (SMF ≥ 3.5, gradual inflow, spike ≥ 8, buy/sell-side footprints, retest of SMF zone, quiet delivery accumulation, long build-up, institutional deals, live RVOL …) plus min/max filters on ~18 metrics |
+| **Institutional Accumulation** | Institutional Score 0–100 (delivery, footprint balance, money flow, trend/RS, F&O OI + deals) with components, Wyckoff phase map now vs 20 sessions ago, score jumps |
+| **Market Setups** | 18 rule-based setups (SMF inflow/spike/footprints, absorption, SMF-zone retest, pocket pivot, delivery breakout, quiet accumulation, Wyckoff spring/upthrust, VCP, episodic pivot, NR7, F&O build-ups, institutional deal buying) with today's signals and their historical hit rates |
+| **Post-move Analysis** | For every setup and SMF bucket: average return after 1/3/5/10/20 sessions, win rate, MFE/MAE, "+10% before −5%", edge vs the all-stock baseline; recent signals and what happened since |
+| **F&O & Deals** | Long/short build-up, short covering, long unwinding (expiry-adjusted OI), PCR; bulk & block deals classified by client type with intraday round-trips removed, net institutional value by stock |
+| **FII / DII** | FII index-futures long %, net index futures by participant, participant OI table, FII/DII cash, Nifty/Bank Nifty PCR |
+| **Methodology** | Every formula and source |
+
+Click any stock for a chart with candles, SMF bars, delivery %, volume and futures OI, its SMF zones, setup
+history with outcomes, deals, and a **Copy SMF zones (Pine)** button that draws the zones on your TradingView chart.
+
+**SMF score.** `SMF = 3.13 × (DPT ÷ 20-day average DPT)^0.571`, with DPT = deliverable quantity ÷ number of
+trades. Fitted to the public SMF demo sheet (Mar–Apr 2025) against NSE's delivery files: R² = 0.945 on 5,366
+stock-days. Same scale: ≈3 normal, ≥ 3.5 favourable, rising 3.5 → 4 → 4.5 = gradual inflow, ≥ 8 sharp move.
+
+Notes
+- NSE publishes delivery only after the close, so SMF scores update with the 18:15 run. During market hours the
+  page shows live price, time-of-day-adjusted relative volume and provisional price/volume setups.
+- The first run back-fills about two years of delivery files and the last ~260 sessions of F&O and participant
+  files (a few extra minutes; F&O completes over two runs). Deal history back-fill uses NSE's report API and
+  fills a little each run where NSE allows it; FII/DII cash history starts on the day the page is installed.
+
 ---
 
 ## 3. Where the numbers come from
@@ -135,6 +168,11 @@ Notes
 | Index membership, F&O list | NSE index constituent CSVs, `fo_mktlots.csv` |
 | Fundamentals (P/E inputs, ROCE, ROE, growth, D/E, Piotroski, shareholders …) | TradingView screener feed: one request covers all NSE stocks (unofficial endpoint) |
 | Intraday prices (market hours only) | TradingView screener feed, ≈15-min delayed |
+| Delivery qty / %, VWAP, trades (smart-money page) | NSE `sec_bhavdata_full` |
+| Futures & options OI | NSE F&O UDiFF bhavcopy, `/content/fo/BhavCopy_NSE_FO_…` |
+| Participant-wise OI | NSE `/content/nsccl/fao_participant_oi_DDMMYYYY.csv` |
+| Bulk / block deals | NSE `/content/equities/bulk.csv`, `block.csv` (+ report API back-fill) |
+| FII / DII cash | NSE provisional figures (www.nseindia.com API, best effort) |
 
 **Camarilla formulas** (previous period H, L, C):
 `R1/S1 = C ± 1.1(H−L)/12 · R2/S2 = C ± 1.1(H−L)/6 · R3/S3 = C ± 1.1(H−L)/4 · R4/S4 = C ± 1.1(H−L)/2 ·
@@ -168,7 +206,8 @@ Commands for other systems:
 pip install -r requirements.txt
 python scripts/build_data.py          # download new NSE days + build site/data.js
 python scripts/build_rotation.py      # NSE index files + build the rotation page data
-# then open site/index.html or site/rotation.html in a browser
+python scripts/build_smartmoney.py    # delivery, F&O, deals + build the smart-money page data
+# then open site/index.html, site/rotation.html or site/smartmoney.html in a browser
 ```
 Useful flags: `--no-download` (rebuild offline), `--no-fundamentals`, `--no-live`, `--start 2025-01-01`.
 
@@ -184,6 +223,7 @@ Useful flags: `--no-download` (rebuild offline), `--no-fundamentals`, `--no-live
 | Banner: *Fundamentals unavailable* | The TradingView feed didn't answer that run. Prices and levels still work, and the next run usually fixes it. |
 | Data stuck on an old date | NSE may not have published yet (holiday or late). Runs retry at 20:00 and 22:00. You can also click *Run workflow*. |
 | NSE blocks GitHub's servers (download errors in the log) | Use `run_local.bat` on your PC, which uses your own Indian internet connection. |
+| Smart-money page says *smartmoney-data.js was not found* | The workflow hasn't run since you added the page, or its *Build the Smart Money* step failed (open the run log). |
 | Rotation page says *rotation-data.js was not found* | The workflow hasn't run since you added the page, or its *Build the Sector Rotation* step failed (open the run log). The screener is unaffected. |
 | Scheduled runs stopped | GitHub pauses schedules after 60 days without commits. The daily data commits normally prevent this. If it happens, click *Enable workflow* in Actions. |
 
@@ -201,6 +241,11 @@ scripts/build_rotation.py      RS Rating, Mansfield, RRG, stages, breadth → si
                                site/rotation-series.js, site/breadth-data.js
 site/index.html                the screener (single file, no external libraries)
 site/rotation.html             Sector Rotation & Relative Strength page
+scripts/nse_smartmoney.py      NSE delivery / F&O / participant OI / deals / FII-DII downloads (data/sm/)
+scripts/build_smartmoney.py    SMF score, Institutional Score, setups, post-move stats → site/smartmoney-data.js,
+                               site/sm-hist/ (per-stock history, loaded on demand)
+site/smartmoney.html           Smart Money & Institutional page
+tests/sm_fixture_server.py     local stand-in for NSE/TradingView to test the smart-money build offline
 site/vendor/echarts.min.js     Apache ECharts 5.6 (charting library used by rotation.html)
 data/                          stored NSE history (kept from 1 Jan two years back; older files pruned)
 tests/                         synthetic fixtures + checks (python tests/make_fixtures.py, etc.)

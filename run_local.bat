@@ -6,8 +6,10 @@ if not exist .venv\Scripts\python.exe call :setup || goto :nopython
 echo Fetching the latest NSE data - the first run downloads about 2 years and takes 10-15 minutes...
 .venv\Scripts\python scripts\build_data.py
 .venv\Scripts\python scripts\build_rotation.py
+.venv\Scripts\python scripts\build_smartmoney.py
 start "" "%~dp0site\index.html"
 start "" "%~dp0site\rotation.html"
+start "" "%~dp0site\smartmoney.html"
 goto :eof
 
 :setup

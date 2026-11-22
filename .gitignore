@@ -5,3 +5,5 @@ __pycache__/
 site/rotation-data.js
 site/rotation-series.js
 site/breadth-data.js
+site/smartmoney-data.js
+site/sm-hist/

@@ -1,0 +1,26 @@
+Smart Money & Institutional page - how to add it to github.com/Karthb/Analytics
+==============================================================================
+
+1. Open the repo on GitHub -> Code tab -> Add file -> Upload files.
+   Drag in everything inside this folder EXCEPT the .github folder and UPDATE-STEPS.txt:
+     scripts/  (nse_smartmoney.py and build_smartmoney.py are new; the other scripts are unchanged)
+     site/     (smartmoney.html is new; index.html and rotation.html only gain a "Smart money" header link)
+     tests/    (offline test helpers)
+     README.md, run_local.bat, workflow-update.yml, .gitignore
+   Commit the changes.
+
+2. Update the workflow: open .github/workflows/update.yml on GitHub -> pencil (Edit) ->
+   select all, paste the contents of workflow-update.yml -> Commit.
+   (It adds one step, "Build the Smart Money & Institutional page data", after the rotation step.
+   Nothing else in the file changed.)
+
+3. The commit starts the workflow. The first run downloads about two years of NSE delivery files plus the
+   last ~140 sessions of F&O files (roughly 5-8 extra minutes). The next run completes the F&O history
+   (260 sessions). Later runs take about one extra minute.
+
+4. Open https://karthb.github.io/Analytics/smartmoney.html
+   (also linked from the screener and the rotation page headers).
+
+Optional check against the SMF demo sheet once data/sm/deliv holds March-April 2025:
+   pip install openpyxl
+   python tests/check_smf_calibration.py "DEMO SHEET - MARCH APRIL 1.xlsx" --data data
