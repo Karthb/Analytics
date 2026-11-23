@@ -68,8 +68,9 @@ def log(msg: str) -> None:
 
 
 def tv_key(nse_symbol: str) -> str:
-    """NSE symbol -> TradingView ticker name (M&M -> M_M, BAJAJ-AUTO -> BAJAJ_AUTO)."""
-    return re.sub(r"[^A-Z0-9]", "_", str(nse_symbol).upper())
+    """NSE symbol -> TradingView ticker name (BAJAJ-AUTO -> BAJAJ_AUTO; M&M stays M&M).
+    TradingView keeps "&" (checked 23 Nov 2026: M&M, J&KBANK, GVT&D, IL&FSENGG ...)."""
+    return re.sub(r"[^A-Z0-9&]", "_", str(nse_symbol).upper())
 
 
 def fetch_tradingview(session: requests.Session) -> pd.DataFrame | None:

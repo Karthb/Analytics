@@ -23,6 +23,10 @@ header{display:flex;align-items:center;gap:12px;padding:10px 18px;background:var
 .pill{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
 .pill b{color:var(--ink);font-weight:600}
 .pill.live{background:#e8f7ee;color:#0b6b3a}.pill.warn{background:var(--warn-soft);color:var(--warn)}
+button.pill{border:0;cursor:pointer;font:inherit;font-size:12px} button.pill:hover{filter:brightness(.96)}
+.pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px}
+.pill.live .dot.on{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 .spacer{flex:1}
 .btn{border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:8px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
 .btn:hover{border-color:#c9cdd8;background:#fafbff}
@@ -314,6 +318,7 @@ const DEFAULT_STATE = () => ({type:"Camarilla",tf:"Y",basis:"cur",match:"all",
 
 /* ------------------------------------------------------------------ state */
 let D = null, ROWS = [], VIEW = [], LIMIT = 300;
+let PIV = null, PER = null, LATEST = null, OPEN_I = null;   // pivot inputs / period labels / latest session, after live prices
 let S = loadState();
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -352,29 +357,36 @@ function fail(){
   $("tbody").innerHTML = ""; $("count").textContent = "";
 }
 
+function derive(o){
+  o.from_h52 = o.h52 && o.close ? (1 - o.close / o.h52) * 100 : null;
+  o.from_l52 = o.l52 && o.close ? (o.close / o.l52 - 1) * 100 : null;
+  o.vs_ema200 = o.ema200 ? (o.close / o.ema200 - 1) * 100 : null;
+  o.vs_ema50 = o.ema50 ? (o.close / o.ema50 - 1) * 100 : null;
+  o.pe_vs_ind = o.pe && o.ind_pe ? o.pe / o.ind_pe : null;
+  o.stale = o.last !== LATEST;
+}
 function init(data){
-  D = data;
+  D = data; PIV = data.piv; PER = data.meta.periods; LATEST = data.meta.latest;
   const cols = data.cols;
   ROWS = data.rows.map((r, i) => {
     const o = {}; cols.forEach((c, j) => o[c] = r[j]);
     o.i = i;
     o.idxs = new Set((o.idx || "").split(",").filter(Boolean));
-    o.from_h52 = o.h52 && o.close ? (1 - o.close / o.h52) * 100 : null;
-    o.from_l52 = o.l52 && o.close ? (o.close / o.l52 - 1) * 100 : null;
-    o.vs_ema200 = o.ema200 ? (o.close / o.ema200 - 1) * 100 : null;
-    o.vs_ema50 = o.ema50 ? (o.close / o.ema50 - 1) * 100 : null;
-    o.pe_vs_ind = o.pe && o.ind_pe ? o.pe / o.ind_pe : null;
-    o.stale = o.last !== data.meta.latest;
     o.cl = data.cl[i] || [];
+    o.tvk = o.sym.toUpperCase().replace(/[^A-Z0-9&]/g, "_");  // TradingView ticker (BAJAJ-AUTO -> BAJAJ_AUTO, M&M stays)
+    o.b = {}; for (const k of LIVE_KEYS) o.b[k] = o[k];        // published values; live prices are applied on top
+    derive(o);
     return o;
   });
+  LIVE.applied = false; LIVE.state = LIVE.on ? "wait" : "off";
   renderStatus(); buildControls(); recompute();
+  liveTick(true);
 }
 
 function renderStatus(){
   const m = D.meta, p = [];
   p.push(`<span class="pill">NSE EOD <b>${fmtDate(m.nse_date)}</b></span>`);
-  if (m.live) p.push(`<span class="pill live">● Live ${fmtDate(m.live.date)} <b>${m.live.time}</b> IST <span style="opacity:.75">(~15 min delayed)</span></span>`);
+  p.push(livePill());
   p.push(`<span class="pill"><b>${m.count.toLocaleString("en-IN")}</b> stocks</span>`);
   if (!m.fundamentals) p.push(`<span class="pill warn">Fundamentals unavailable this run</span>`);
   p.push(`<span class="pill" title="When the data file was built">Built ${esc(m.generated)}</span>`);
@@ -384,9 +396,194 @@ function renderStatus(){
 }
 function fmtDate(s){ if(!s) return "–"; const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}); }
 
+/* ------------------------------------------------------------------ live prices (fetched by this page)
+   While the page is open in market hours it asks TradingView's screener feed for every NSE stock's
+   open/high/low/close/volume once a minute (~15 min delayed, the same feed the GitHub build uses) and
+   rolls the published data forward: price columns, the developing pivot periods, EMAs, RSI, returns,
+   52-week high/low and valuation ratios. The published file stays the base, so each refresh starts
+   clean, and NSE's official bhavcopy replaces everything after the evening build. */
+const LIVE_URL = "https://scanner.tradingview.com/india/scan";
+const LIVE_EVERY = 60e3;                       // refresh interval in market hours
+const LIVE_OPEN = 9 * 60 + 15, LIVE_STOP = 16 * 60 + 15;   // IST minutes; delayed feed shows the close by ~15:45
+const LIVE_KEYS = ["close","chg","prev","open","high","low","vol","vol_ratio","last","h52","l52","rsi","rsi_up","rsi_dn",
+  "ema20","ema50","ema200","r_1w","r_1m","r_3m","r_6m","r_1y","r_ytd","mcap","pe","pb","dy","mcap_sales","cmp_fcf","cl"];
+const RET_KEYS = ["r_1w","r_1m","r_3m","r_6m","r_1y","r_ytd"], SCALE_KEYS = ["mcap","pe","pb","mcap_sales","cmp_fcf"];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const LIVE = {on:true, state:"wait", applied:false, busy:false, date:null, time:null, last:0, n:0, fails:0, offDone:false};
+try { LIVE.on = localStorage.getItem("ncs_live") !== "off"; } catch(e){}
+
+function istNow(){   // IST calendar date, minutes since midnight and weekday, whatever the viewer's time zone
+  const t = new Date(Date.now() + 330 * 60e3);
+  return {date: t.toISOString().slice(0, 10), mins: t.getUTCHours() * 60 + t.getUTCMinutes(), dow: t.getUTCDay(),
+          hms: t.toISOString().slice(11, 19)};
+}
+function inMarket(n){ return n.dow >= 1 && n.dow <= 5 && n.mins >= LIVE_OPEN && n.mins < LIVE_STOP; }
+function sessionDate(n){   // the session TradingView is showing: today once the market opens, else the last weekday
+  if (n.dow >= 1 && n.dow <= 5 && n.mins >= LIVE_OPEN) return n.date;
+  const t = new Date(n.date + "T00:00:00Z");
+  do t.setUTCDate(t.getUTCDate() - 1); while (t.getUTCDay() === 0 || t.getUTCDay() === 6);
+  return t.toISOString().slice(0, 10);
+}
+function pkey(ds, tf){   // same period keys as build_data.py (Monday-start weeks)
+  const [y, m, d] = ds.split("-").map(Number), days = Math.round(Date.UTC(y, m - 1, d) / 864e5);
+  return tf === "D" ? days : tf === "W" ? days - ((days + 3) % 7) : tf === "M" ? y * 12 + m - 1 : tf === "Q" ? y * 4 + Math.floor((m - 1) / 3) : y;
+}
+function plabel(ds, tf){
+  const [y, m, d] = ds.split("-").map(Number), p2 = x => String(x).padStart(2, "0");
+  if (tf === "D") return `${p2(d)} ${MON[m - 1]} ${y}`;
+  if (tf === "W"){ const w = new Date(pkey(ds, "W") * 864e5); return `Week of ${p2(w.getUTCDate())} ${MON[w.getUTCMonth()]} ${w.getUTCFullYear()}`; }
+  if (tf === "M") return `${MON[m - 1]} ${y}`;
+  if (tf === "Q") return `Q${Math.floor((m - 1) / 3) + 1} ${y}`;
+  return String(y);
+}
+
+async function fetchLive(){
+  const body = JSON.stringify({filter:[{left:"exchange", operation:"equal", right:"NSE"}], options:{lang:"en"}, markets:["india"],
+    symbols:{query:{types:[]}, tickers:[]}, columns:["name","open","high","low","close","volume"], range:[0, 10000]});
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
+  try {
+    // text/plain keeps this a "simple" cross-origin request (no CORS pre-flight)
+    const r = await fetch(LIVE_URL, {method:"POST", body, headers:{"Content-Type":"text/plain"}, signal:ctl.signal, cache:"no-store", credentials:"omit"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json(), map = new Map();
+    for (const it of (j.data || [])){
+      const d = it.d || [], k = String(it.s || "").split(":").pop();
+      map.set(k, {o:+d[1], h:+d[2], l:+d[3], c:+d[4], v:+d[5]});
+    }
+    if (map.size < 500) throw new Error("only " + map.size + " stocks returned");
+    return map;
+  } finally { clearTimeout(to); }
+}
+
+const tvRow = (map, o) => map.get(o.tvk) || map.get(o.tvk.replace(/&/g, "_"));   // older TradingView names used "_"
+function restore(o){ for (const k of LIVE_KEYS) o[k] = o.b[k]; o.lv = false; }
+
+// Roll the published data forward with one live bar per stock. Returns false if TradingView is still
+// showing the session that is already in the file (weekend, holiday, before the open).
+function applyLive(map, ld){
+  const L0 = D.meta.latest;
+  if (ld < L0 || (ld === L0 && D.meta.nse_date >= ld)) return false;   // official close already in the file
+  if (ld > L0){   // same check as build_data.py: identical volumes => no new session on TradingView yet
+    let same = 0, n = 0;
+    for (const o of ROWS){ const t = tvRow(map, o);
+      if (o.b.last === L0 && o.b.vol > 0 && t && t.v > 0){ n++; if (Math.round(t.v) === Math.round(o.b.vol)) same++; } }
+    if (!n || same / n > 0.3) return false;
+  }
+  const TFS = ["D","W","M","Q","Y"], piv = {}, kL = {}, k0 = {};
+  for (const tf of TFS){ piv[tf] = D.piv[tf].slice(); kL[tf] = pkey(ld, tf); k0[tf] = pkey(L0, tf); }
+  let used = 0;
+  for (const o of ROWS){
+    const b = o.b, t = tvRow(map, o);
+    restore(o);
+    if (!t || !(t.c > 0) || !(t.v > 0) || !b.close || !b.last) continue;      // not traded yet this session
+    const rep = b.last === ld;              // the file already has a provisional bar for this session: replace it
+    const ref = rep ? b.prev : b.close;     // previous session's close
+    if (!(ref > 0) || t.c / ref <= 0.75 || t.c / ref >= 1.33) continue;    // likely split/bonus day: wait for NSE's file
+    const c = t.c, o_ = t.o > 0 ? t.o : c, h = Math.max(t.h > 0 ? t.h : c, c, o_), l = Math.min(t.l > 0 ? t.l : c, c, o_);
+    o.close = c; o.open = o_; o.high = h; o.low = l; o.prev = ref; o.chg = (c / ref - 1) * 100; o.vol = t.v; o.last = ld; o.lv = true;
+    // 20-session average volume before this session (exact with the build's helper columns)
+    const avg = rep ? (o.va_x ?? (b.vol_ratio > 0 && b.vol > 0 ? b.vol / b.vol_ratio : null))
+                    : (o.va_i ?? (b.vol_ratio > 0 && b.vol > 0 ? b.vol / b.vol_ratio : null));
+    o.vol_ratio = avg > 0 ? t.v / avg : b.vol_ratio;
+    const nx = !rep && ld === D.meta.next;   // the file's "next session" helpers apply (52W window, return anchors)
+    const h0 = nx && o.h52n !== undefined ? o.h52n : b.h52, l0 = nx && o.l52n !== undefined ? o.l52n : b.l52;
+    o.h52 = h0 != null ? Math.max(h0, h) : b.h52 != null ? h : null;
+    o.l52 = l0 != null ? Math.min(l0, l) : b.l52 != null ? l : null;
+    for (const n of [20, 50, 200]){ const e = b["ema" + n], k = 2 / (n + 1); if (e == null) continue;
+      const e0 = rep ? (e - k * b.close) / (1 - k) : e;     // undo the provisional bar first
+      o["ema" + n] = e0 + k * (c - e0); }
+    if (b.rsi_up != null && b.rsi_dn != null){   // Wilder RSI(14) rolled forward from the published averages
+      let up = b.rsi_up, dn = b.rsi_dn;
+      if (rep){ const d0 = b.close - b.prev; up = Math.max(0, (up - Math.max(d0, 0) / 14) * 14 / 13); dn = Math.max(0, (dn - Math.max(-d0, 0) / 14) * 14 / 13); }
+      const d = c - ref; up = up * 13 / 14 + Math.max(d, 0) / 14; dn = dn * 13 / 14 + Math.max(-d, 0) / 14;
+      o.rsi = dn === 0 ? 100 : 100 - 100 / (1 + up / dn);   // as build_data.py
+    }
+    const sc = c / b.close;
+    for (const k of RET_KEYS){
+      const a = o["a" + k.slice(1)];   // a_1w … a_1y: anchor close for the next session
+      if (k !== "r_ytd" && nx && a !== undefined) o[k] = a > 0 ? (c / a - 1) * 100 : null;
+      else if (k === "r_ytd" && !rep && ld.slice(0, 4) > b.last.slice(0, 4)) o[k] = (c / b.close - 1) * 100;   // first session of a new year
+      else o[k] = b[k] == null ? null : ((1 + b[k] / 100) * sc - 1) * 100;   // same anchors (provisional bar / same year), else approximate
+    }
+    for (const k of SCALE_KEYS) o[k] = b[k] == null ? null : b[k] * sc;
+    o.dy = b.dy == null ? null : b.dy / sc;
+    o.cl = rep ? b.cl.slice(0, -1).concat(c) : b.cl.concat(c).slice(-11);
+    for (const tf of TFS){
+      const p = D.piv[tf][o.i] || [null,null,null,null,null,null,null], kS = pkey(b.last, tf);
+      if (kS === kL[tf]) piv[tf][o.i] = [p[0], p[1], p[2], p[3], tf === "D" ? o_ : (p[4] ?? o_), tf === "D" ? h : Math.max(p[5] ?? h, h), tf === "D" ? l : Math.min(p[6] ?? l, l)];
+      else if (kS === k0[tf]) piv[tf][o.i] = [p[4], p[5], p[6], b.close, o_, h, l];   // the file's current period has ended
+      else piv[tf][o.i] = [p[0], p[1], p[2], p[3], o_, h, l];                         // stock had not traded in it
+    }
+    used++;
+  }
+  if (!used){ ROWS.forEach(restore); return false; }
+  PIV = piv; LATEST = ld;
+  PER = {};
+  for (const tf of TFS) PER[tf] = kL[tf] === k0[tf] ? D.meta.periods[tf] : {cur: plabel(ld, tf), prev: D.meta.periods[tf].cur};
+  for (const o of ROWS) derive(o);
+  LIVE.n = used;
+  return true;
+}
+
+function unapplyLive(){
+  ROWS.forEach(o => { restore(o); derive(o); });
+  PIV = D.piv; PER = D.meta.periods; LATEST = D.meta.latest; LIVE.applied = false;
+}
+
+function refreshViews(){
+  recompute(true); renderPeriodNote(); renderStatus();
+  if (OPEN_I != null && $("drawer").classList.contains("open")){ const dr = $("drawer"), y = dr.scrollTop; openDetail(ROWS[OPEN_I]); dr.scrollTop = y; }
+}
+
+async function liveTick(force){
+  if (!D || !LIVE.on || LIVE.busy || document.hidden) return;
+  const n = istNow(), open = inMarket(n);
+  if (open) LIVE.offDone = false;
+  else if (LIVE.offDone && !force) return;           // outside market hours: one fetch per page load is enough
+  if (!force && Date.now() - LIVE.last < LIVE_EVERY - 5e3) return;
+  const ld = sessionDate(n);
+  if (D.meta.nse_date >= ld){ LIVE.state = "final"; LIVE.offDone = !open; renderStatus(); return; }   // NSE close already published
+  LIVE.busy = true; LIVE.last = Date.now();
+  if (!LIVE.applied && LIVE.state !== "err"){ LIVE.state = "load"; renderStatus(); }
+  try {
+    const map = await fetchLive();
+    if (!LIVE.on || !D) return;
+    const ok = applyLive(map, ld);
+    LIVE.fails = 0; LIVE.offDone = !open; LIVE.time = n.hms.slice(0, 5); LIVE.hms = n.hms;
+    if (ok){ LIVE.applied = true; LIVE.date = ld; LIVE.state = open ? "live" : "after"; }
+    else { if (LIVE.applied) unapplyLive(); LIVE.state = "closed"; }
+    refreshViews();
+  } catch(e){
+    LIVE.fails++; LIVE.err = String(e && e.message || e); LIVE.state = "err";
+    if (!open) LIVE.offDone = true;
+    renderStatus();
+  } finally { LIVE.busy = false; }
+}
+
+function toggleLive(){
+  LIVE.on = !LIVE.on;
+  try { localStorage.setItem("ncs_live", LIVE.on ? "on" : "off"); } catch(e){}
+  if (LIVE.on){ LIVE.state = "wait"; LIVE.offDone = false; renderStatus(); liveTick(true); }
+  else { if (LIVE.applied) unapplyLive(); LIVE.state = "off"; refreshViews(); }
+}
+
+function livePill(){
+  const m = D.meta, s = LIVE.state;
+  const built = m.live ? `<span class="pill live" title="Prices in the published file (GitHub build)"><span class="dot"></span>Published live ${fmtDate(m.live.date)} <b>${m.live.time}</b> IST</span>` : "";
+  const tip = "Prices from TradingView's screener feed (about 15 minutes delayed), refreshed every minute while this page is open in market hours. Click to pause or resume.";
+  const btn = (cls, html, t) => `<button class="pill ${cls}" id="livePill" title="${esc(t || tip)}">${html}</button>`;
+  if (s === "off") return btn("", "❚❚ Live prices paused", "Live refresh is paused; showing the published file. Click to resume.") + built;
+  if (s === "live") return btn("live", `<span class="dot on"></span>Live ${fmtDate(LIVE.date)} <b>${LIVE.hms}</b> IST <span style="opacity:.75">(~15 min delayed)</span>`);
+  if (s === "after") return btn("live", `<span class="dot"></span>${fmtDate(LIVE.date)} prices <b>${LIVE.time}</b> IST <span style="opacity:.75">· market closed · NSE official close after ~7 pm</span>`);
+  if (s === "final") return btn("", `<span class="dot"></span>NSE official close`, "The file already has NSE's official close for the latest session, so no live prices are needed. Click to pause live refresh.");
+  if (s === "closed") return btn("", `<span class="dot"></span>Live: no trading yet this session`, "TradingView is still showing the last session that is already in the file (weekend, holiday or before the 09:15 open). Checks again every minute in market hours. Click to pause.") + built;
+  if (s === "err") return btn("warn", `Live prices unavailable${LIVE.fails > 1 ? " · retrying" : ""}`, `Could not reach TradingView (${LIVE.err || "error"}); showing the published file. Retries every minute. Click to pause.`) + built;
+  return btn("", `<span class="dot"></span>Live prices: connecting…`) + built;
+}
+
 /* ------------------------------------------------------------------ pivots */
 function levelsFor(o, type, tf, basis){
-  const p = D.piv[tf][o.i]; if (!p) return null;
+  const p = PIV[tf][o.i]; if (!p) return null;
   let O,H,L,C,cO;
   if (basis === "next"){ if (p[5] == null) return null; O = p[4]; H = p[5]; L = p[6]; C = o.close; cO = o.close; }
   else { if (p[1] == null) return null; [O,H,L,C] = p; cO = p[4] ?? C; }
@@ -408,15 +605,15 @@ function zoneOf(close, lv, type){
   cls = /^R[3-9]/.test(top) ? "hiR" : /^(R|P)/.test(top) ? "midR" : /^S[3-9]/.test(top) || k < 0 ? "loS" : "";
   return {z, r:k, cls};
 }
-function recompute(){
+function recompute(keep){
   for (const o of ROWS){
     o.L = levelsFor(o, S.type, S.tf, S.basis);
     const z = zoneOf(o.close, o.L, S.type); o.zone = z.z; o.zr = z.r; o.zcls = z.cls;
     o.dist = o.L && o.L[S.dist] ? (o.close / o.L[S.dist] - 1) * 100 : null;
-    const p = D.piv[S.tf][o.i];
+    const p = PIV[S.tf][o.i];
     o.pH = p ? p[5] : null; o.pLo = p ? p[6] : null; o.pO = p ? p[4] : null;
   }
-  applyFilters();
+  applyFilters(keep);
 }
 
 /* ------------------------------------------------------------------ filtering */
@@ -438,7 +635,7 @@ function testCond(o, c){
   }
   return true;
 }
-function applyFilters(){
+function applyFilters(keep){   // keep = live refresh: keep "Show all" and scroll as they are
   const q = S.q.trim().toUpperCase();
   const conds = S.conds.filter(c => c.a);
   const rng = Object.entries(S.ranges).filter(([k,v]) => v && (v[0] !== "" && v[0] != null || v[1] !== "" && v[1] != null));
@@ -462,7 +659,7 @@ function applyFilters(){
     }
     return true;
   });
-  sortView(); LIMIT = 300; renderTable(); renderActive(); saveState();
+  sortView(); if (!keep) LIMIT = 300; renderTable(); renderActive(); saveState();
 }
 function sortView(){
   const {k, d} = S.sort;
@@ -589,7 +786,7 @@ function renderLevelChips(){
   $("distLvl").innerHTML = all.map(n => `<option ${n===S.dist?"selected":""}>${n}</option>`).join("");
 }
 function renderPeriodNote(){
-  const p = D.meta.periods[S.tf];
+  const p = PER[S.tf];
   $("periodNote").textContent = S.basis === "cur"
     ? `Levels from ${p.prev ?? "–"} H/L/C, valid for ${p.cur}${S.tf==="Y"?" (same as TradingView 'Auto' on a weekly chart)":""}.`
     : `Levels from ${p.cur} so far (developing) – they apply to the next ${TF_NAMES[S.tf].toLowerCase().replace("daily","day").replace("ly","")} period.`;
@@ -659,6 +856,8 @@ function wire(){
   $("tbody").onclick = e => { const tr = e.target.closest("tr"); if (tr) openDetail(ROWS[+tr.dataset.i]); };
   $("more").onclick = e => { if (e.target.id === "showMore"){ LIMIT = 1e9; renderTable(); } };
   $("btnReload").onclick = loadData;
+  $("status").addEventListener("click", e => { if (e.target.closest("#livePill")) toggleLive(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) liveTick(false); });
   $("btnCsv").onclick = exportCsv;
   $("btnCols").onclick = openCols;
   $("btnHelp").onclick = openHelp;
@@ -668,10 +867,11 @@ function wire(){
   $("mclose").onclick = closeAll;
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeAll(); });
 }
-function closeAll(){ ["side","drawer","modal","overlay"].forEach(id => $(id).classList.remove("open")); }
+function closeAll(){ ["side","drawer","modal","overlay"].forEach(id => $(id).classList.remove("open")); OPEN_I = null; }
 
 /* ------------------------------------------------------------------ detail drawer */
 function openDetail(o){
+  OPEN_I = o.i;
   const r = (l, v, f, unit="") => `<div class="ratio"><span>${l}</span><span>${fmt(v, f)}${v!=null&&unit?` <span class="sub">${unit}</span>`:""}</span></div>`;
   const ratios = [
     r("Market Cap", o.mcap, "cr", "Cr"), r("Current Price", o.close, "p"),
@@ -692,14 +892,14 @@ function openDetail(o){
   const nearest = {}; tfs.forEach(t => { if (!LV[t]) return; let b=null,bd=1e18; names.forEach(n => { const d = Math.abs(LV[t][n]-o.close); if (d<bd){bd=d;b=n;} }); nearest[t]=b; });
   const zoneRow = tfs.map(t => `<td><span class="zone ${zoneOf(o.close, LV[t], S.type).cls}">${esc(zoneOf(o.close, LV[t], S.type).z)}</span></td>`).join("");
   const lvRows = names.map(n => `<tr><td class="l"><b>${n}</b></td>${tfs.map(t => `<td class="${nearest[t]===n?"hit":""}">${fmt(LV[t]?LV[t][n]:null,"p")}</td>`).join("")}</tr>`).join("");
-  const per = tfs.map(t => `<th>${TF_NAMES[t]}<div class="sub" style="font-weight:400">${esc(S.basis==="cur"?(D.meta.periods[t].cur):"next")}</div></th>`).join("");
+  const per = tfs.map(t => `<th>${TF_NAMES[t]}<div class="sub" style="font-weight:400">${esc(S.basis==="cur"?(PER[t].cur):"next")}</div></th>`).join("");
   const tvSym = o.sym.replace(/[^A-Za-z0-9]/g, "_");
   $("drawer").innerHTML = `
     <div class="dhead">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
         <div><h2>${esc(o.name)}</h2>
           <div class="dprice">₹ ${fmt(o.close,"p")} <span style="font-size:15px">${fmt(o.chg,"pctS")}%</span>
-            <span class="sub" style="font-weight:400">${o.stale?"last traded "+fmtDate(o.last):(D.meta.live&&o.last===D.meta.live.date?"live "+D.meta.live.time+" IST":"close "+fmtDate(o.last))}</span></div>
+            <span class="sub" style="font-weight:400">${o.stale?"last traded "+fmtDate(o.last):o.lv?"live "+LIVE.time+" IST (~15 min delayed)":(D.meta.live&&o.last===D.meta.live.date?"live "+D.meta.live.time+" IST":"close "+fmtDate(o.last))}</span></div>
           <div class="links"><span class="sub">NSE: <b>${esc(o.sym)}</b> · ${esc(o.series)}${o.fo?" · F&O":""}${o.idx?" · "+esc(o.idx.replace(/,/g,", ")):""}</span></div>
           <div class="links">
             <a href="https://www.screener.in/company/${encodeURIComponent(o.sym)}/" target="_blank" rel="noopener">Screener.in ↗</a>
@@ -716,7 +916,7 @@ function openDetail(o){
         <div style="padding:12px 16px 4px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><b>${S.type} pivot levels — ${S.basis==="cur"?"current periods":"next periods (developing)"}</b><span class="sub">Highlighted = level nearest to CMP</span></div>
         <div style="overflow:auto"><table class="lvls"><thead><tr><th class="l">Level</th>${per}</tr></thead>
           <tbody><tr class="cmp"><td class="l">CMP zone</td>${zoneRow}</tr>${lvRows}
-          <tr><td class="l sub">Prev H / L / C</td>${tfs.map(t=>{const p=S.basis==="cur"?D.piv[t][o.i]:null;return `<td class="sub">${p&&p[1]!=null?`${fmt(p[1],"p")}<br>${fmt(p[2],"p")}<br>${fmt(p[3],"p")}`:"–"}</td>`}).join("")}</tr>
+          <tr><td class="l sub">Prev H / L / C</td>${tfs.map(t=>{const p=S.basis==="cur"?PIV[t][o.i]:null;return `<td class="sub">${p&&p[1]!=null?`${fmt(p[1],"p")}<br>${fmt(p[2],"p")}<br>${fmt(p[3],"p")}`:"–"}</td>`}).join("")}</tr>
           </tbody></table></div>
       </div>
       <p class="sub" style="margin-top:14px">Fundamentals: TradingView feed (may differ slightly from Screener.in, which uses its own definitions). Prices &amp; levels: NSE official bhavcopy, split/bonus-adjusted. Not investment advice.</p>
@@ -741,7 +941,8 @@ function openHelp(){
   const m = D ? D.meta : null;
   $("mtitle").textContent = "How this screener works";
   $("mbody").innerHTML = `
-    <p><b>Data.</b> Prices come from NSE's official end-of-day bhavcopy (nsearchives.nseindia.com). A GitHub Action downloads each new day after market close (~7 pm IST) and, during market hours, refreshes prices every ~30 minutes from TradingView (about 15 min delayed). Every time you open this page it loads the newest file.${m?` Current file: NSE data up to <b>${fmtDate(m.nse_date)}</b>${m.live?`, live prices at <b>${m.live.time} IST</b>`:""}; history from ${fmtDate(m.history_from)}.`:""}</p>
+    <p><b>Data.</b> Prices come from NSE's official end-of-day bhavcopy (nsearchives.nseindia.com). A GitHub Action downloads each new day after market close (~7 pm IST) and, during market hours, refreshes prices every ~30 minutes from TradingView (about 15 min delayed). Every time you open this page it loads the newest file.</p>
+    <p><b>Live prices.</b> While this page is open in market hours (Mon–Fri 09:15–16:15 IST) it also fetches every NSE stock's price from TradingView itself once a minute (same ~15-minute-delayed feed) and updates CMP, change, volume, the developing pivot periods, EMAs, RSI, returns, 52-week high/low and price-based ratios — no need to wait for the next build. The green <i>Live</i> badge shows when it last refreshed; click it to pause. If the published file is more than one session old (a missed build or a holiday in between), 1W–1Y returns and the 52-week high/low are approximate until the next build. NSE's official bhavcopy replaces the live prices after the evening build.${m?` Current file: NSE data up to <b>${fmtDate(m.nse_date)}</b>${m.live?`, live prices at <b>${m.live.time} IST</b>`:""}; history from ${fmtDate(m.history_from)}.`:""}</p>
     <p><b>Pivot periods.</b> "Current period" levels use the previous completed period's High, Low and Close — exactly what TradingView's <i>Pivot Points Standard</i> draws. With pivots set to <i>Auto</i>, TradingView uses Daily levels on ≤15-min charts, Weekly on other intraday charts, Monthly on daily charts and <b>Yearly on weekly/monthly charts</b>. "Next period" builds levels from the period in progress (they firm up when it ends).</p>
     <p><b>Camarilla formulas</b> (H, L, C of the previous period): R1/S1 = C ± 1.1×(H−L)/12 · R2/S2 = C ± 1.1×(H−L)/6 · R3/S3 = C ± 1.1×(H−L)/4 · R4/S4 = C ± 1.1×(H−L)/2 · R5 = (H/L)×C, S5 = C − (R5 − C) · P = (H+L+C)/3. TradingView rounds levels to the tick size (₹0.05), so 704.875 displays there as 704.90.</p>
     <p><b>Conditions.</b> "Crossed above R4 (N days)" = today's close is above R4 and at least one of the previous N closes was at or below it. "Period high so far" lets you find stocks that touched a level intraday during the period even if they closed back below.</p>
@@ -761,12 +962,13 @@ function exportCsv(){
   for (const o of VIEW) lines.push(cols.map(([k]) => q(k.startsWith("L:") ? (o.L ? plain(o.L[k.slice(2)]) : "") : plain(o[k], FIELD[k]?.f))).join(","));
   const blob = new Blob(["﻿" + lines.join("\n")], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = `nse-screener-${S.type}-${TF_NAMES[S.tf]}-${D.meta.latest}.csv`; a.click();
+  a.download = `nse-screener-${S.type}-${TF_NAMES[S.tf]}-${LATEST}.csv`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 wire();
 loadData();
+setInterval(() => liveTick(false), 15e3);   // fetches at most once a minute, only in market hours
 </script>
 </body>
 </html>

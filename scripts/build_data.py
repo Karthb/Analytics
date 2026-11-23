@@ -325,12 +325,21 @@ def compute_periods(df: pd.DataFrame):
     return out, labels
 
 
-def _rsi(c: np.ndarray, n: int = 14) -> float | None:
+def _rsi_parts(c: np.ndarray, n: int = 14) -> tuple[float | None, float | None]:
+    """Wilder-smoothed average gain and loss behind RSI(n). The web page uses them to roll RSI
+    forward with live prices: up' = up*(n-1)/n + max(d, 0)/n, same for dn."""
     if len(c) <= n:
-        return None
+        return None, None
     d = np.diff(c)
     up = pd.Series(np.clip(d, 0, None)).ewm(alpha=1 / n, adjust=False).mean().iloc[-1]
     dn = pd.Series(np.clip(-d, 0, None)).ewm(alpha=1 / n, adjust=False).mean().iloc[-1]
+    return float(up), float(dn)
+
+
+def _rsi(c: np.ndarray, n: int = 14) -> float | None:
+    up, dn = _rsi_parts(c, n)
+    if up is None:
+        return None
     if dn == 0:
         return 100.0
     return 100 - 100 / (1 + up / dn)
@@ -342,9 +351,18 @@ def _ema(c: np.ndarray, n: int) -> float | None:
     return float(pd.Series(c).ewm(span=n, adjust=False).mean().iloc[-1])
 
 
+def next_weekday(d: pd.Timestamp) -> pd.Timestamp:
+    d = d + pd.Timedelta(days=1)
+    while d.weekday() >= 5:
+        d += pd.Timedelta(days=1)
+    return d
+
+
 def symbol_stats(df: pd.DataFrame) -> pd.DataFrame:
     latest = df["date"].max()
     ytd_anchor = pd.Timestamp(latest.year - 1, 12, 31)
+    nxt = next_weekday(latest)  # likely next session: helpers below let the web page roll live prices forward exactly
+    yr_next = np.datetime64(nxt - pd.Timedelta(days=365))
     rows = []
     for sym, g in df.groupby("symbol", sort=False):
         c = g["close"].to_numpy(dtype=float)
@@ -363,7 +381,14 @@ def symbol_stats(df: pd.DataFrame) -> pd.DataFrame:
                 return None
             return (c[-1] / c[idx] - 1) * 100
 
+        def anchor_next(days):  # close the return would be measured from if the next session were `nxt`
+            idx = np.searchsorted(dts, np.datetime64(nxt - pd.Timedelta(days=days)), side="right") - 1
+            return c[idx] if idx >= 0 and c[idx] > 0 else None
+
+        yn = dts > yr_next
+
         prev = c[-2] if len(c) > 1 else np.nan
+        up14, dn14 = _rsi_parts(c)
         rows.append({
             "symbol": sym,
             "last": last_dt.strftime("%Y-%m-%d"),
@@ -375,7 +400,9 @@ def symbol_stats(df: pd.DataFrame) -> pd.DataFrame:
             "deliv": next((x for x in g["deliv_pct"].to_numpy()[-2:][::-1] if np.isfinite(x)), None),
             "h52": np.nanmax(h[yr]) if yr.any() else None,
             "l52": np.nanmin(lo[yr]) if yr.any() else None,
-            "rsi": _rsi(c), "ema20": _ema(c, 20), "ema50": _ema(c, 50), "ema200": _ema(c, 200),
+            "rsi": (None if up14 is None else 100.0 if dn14 == 0 else 100 - 100 / (1 + up14 / dn14)),
+            "rsi_up": up14, "rsi_dn": dn14,
+            "ema20": _ema(c, 20), "ema50": _ema(c, 50), "ema200": _ema(c, 200),
             "r_1w": ret(7), "r_1m": ret(30), "r_3m": ret(91), "r_6m": ret(182), "r_1y": ret(365),
             "r_ytd": ret(anchor=ytd_anchor) if dts[0] <= np.datetime64(ytd_anchor) else None,
             "issue": g["issue_size"].ffill().iat[-1],
@@ -383,6 +410,14 @@ def symbol_stats(df: pd.DataFrame) -> pd.DataFrame:
             "isin": g["isin"].iat[-1],
             "closes": [round(float(x), 2) for x in c[-11:]],
             "bars": len(c),
+            # live-roll helpers: 20-session average volume excluding / including the latest bar,
+            # 52-week high/low and return anchors as they will be on the next weekday
+            "va_x": np.nanmean(v[-21:-1]) if len(v) > 5 else None,
+            "va_i": np.nanmean(v[-20:]) if len(v) >= 5 else None,
+            "h52n": np.nanmax(h[yn]) if yn.any() else None,
+            "l52n": np.nanmin(lo[yn]) if yn.any() else None,
+            "a_1w": anchor_next(7), "a_1m": anchor_next(30), "a_3m": anchor_next(91),
+            "a_6m": anchor_next(182), "a_1y": anchor_next(365),
         })
     return pd.DataFrame(rows).set_index("symbol")
 
@@ -480,7 +515,8 @@ def main() -> int:
             "mcap", "shares_cr", "fv", "pe", "pb", "bv", "dy", "roce", "roe", "roe_ttm", "roic", "roa",
             "eps", "de", "sales_g", "profit_g", "eps_g", "sales_g_fy", "profit_g_fy", "peg", "pio",
             "mcap_sales", "cmp_fcf", "ind_pe", "holders", "opm", "npm", "cur_ratio", "int_cov",
-            "ev_ebitda", "beta", "float_pct", "payout", "sales_cr", "profit_cr", "next_res", "listed", "ca"]
+            "ev_ebitda", "beta", "float_pct", "payout", "sales_cr", "profit_cr", "next_res", "listed", "ca",
+            "rsi_up", "rsi_dn", "va_x", "va_i", "h52n", "l52n", "a_1w", "a_1m", "a_3m", "a_6m", "a_1y"]
     recs = []
     for sym, st in stats.iterrows():
         t = tvm.loc[fnd.tv_key(sym)] if fnd.tv_key(sym) in tvm.index else None
@@ -505,7 +541,9 @@ def main() -> int:
             "last": st["last"], "close": close, "chg": st["chg"], "prev": st["prev"], "open": st["open"],
             "high": st["high"], "low": st["low"], "vol": st["vol"], "vol_ratio": st["vol_ratio"],
             "avg_val_cr": st["avg_val_cr"], "deliv": st["deliv"],
-            "h52": st["h52"], "l52": st["l52"], "rsi": st["rsi"],
+            "h52": st["h52"], "l52": st["l52"], "rsi": st["rsi"], "rsi_up": st["rsi_up"], "rsi_dn": st["rsi_dn"],
+            "va_x": st["va_x"], "va_i": st["va_i"], "h52n": st["h52n"], "l52n": st["l52n"],
+            "a_1w": st["a_1w"], "a_1m": st["a_1m"], "a_3m": st["a_3m"], "a_6m": st["a_6m"], "a_1y": st["a_1y"],
             "ema20": st["ema20"], "ema50": st["ema50"], "ema200": st["ema200"],
             "r_1w": st["r_1w"], "r_1m": st["r_1m"], "r_3m": st["r_3m"], "r_6m": st["r_6m"],
             "r_1y": st["r_1y"], "r_ytd": st["r_ytd"],
@@ -534,7 +572,7 @@ def main() -> int:
     frame["ind_pe"] = frame["industry"].map(med.where(cnt >= 3))
 
     text_cols = {"sym", "name", "series", "idx", "sector", "industry", "nse_ind", "last", "next_res", "listed", "ca"}
-    int_cols = {"sme", "fo", "vol", "holders", "pio"}
+    int_cols = {"sme", "fo", "vol", "holders", "pio", "va_x", "va_i"}
     rows = []
     for rec in frame[cols].itertuples(index=False):
         row = []
@@ -546,6 +584,9 @@ def main() -> int:
                 row.append(None if f is None else int(round(f)))
             elif c in ("mcap", "sales_cr", "profit_cr"):
                 row.append(rnd(v, 0))
+            elif c in ("rsi_up", "rsi_dn"):  # 5 significant digits (penny stocks have tiny averages)
+                f = num(v)
+                row.append(None if f is None else float(f"{f:.5g}"))
             else:
                 row.append(rnd(v, 2))
         rows.append(row)
@@ -568,6 +609,7 @@ def main() -> int:
             "generated": now.strftime("%Y-%m-%d %H:%M IST") if args.now else dt.datetime.now(IST).strftime("%Y-%m-%d %H:%M IST"),
             "nse_date": f"{nse_date:%Y-%m-%d}",
             "latest": f"{latest:%Y-%m-%d}",
+            "next": f"{next_weekday(latest):%Y-%m-%d}",  # session the a_*/h52n/l52n/va_i helpers are for
             "live": live,
             "fundamentals": tv is not None,
             "count": len(rows),
