@@ -46,6 +46,10 @@ header{display:flex;align-items:center;gap:12px;padding:10px 18px;background:var
 .pill{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
 .pill b{color:var(--ink);font-weight:600}
 .pill.live{background:var(--pos-bg);color:var(--pos)} .pill.warn{background:var(--warn-soft);color:var(--warn)}
+button.pill{border:0;cursor:pointer;font:inherit;font-size:12px} button.pill:hover{filter:brightness(.96)}
+.pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px}
+.pill.live .dot.on{animation:lvpulse 2s ease-in-out infinite}
+@keyframes lvpulse{0%,100%{opacity:1}50%{opacity:.25}}
 .spacer{flex:1}
 .btn{border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:8px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
 .btn:hover{border-color:var(--muted)}
@@ -403,7 +407,7 @@ function loadScript(name, key, varName) {
   sc.onload = () => {
     if (key === "series") { SER = window[varName]; SER.pos = {}; SER.syms.forEach((s, i) => { SER.pos[s] = i; }); }
     if (key === "breadth") { BR = window[varName]; BR.map = {}; BR.universes.forEach(u => { BR.map[u.code] = u; }); }
-    loaded[key] = true; waiters[key].splice(0).forEach(f => f());
+    loaded[key] = true; liveOnLoad(key); waiters[key].splice(0).forEach(f => f());
   };
   sc.onerror = () => { $("#banner").textContent = `Could not load ${name}. Run the GitHub workflow once, then reload.`; };
   document.body.appendChild(sc);
@@ -514,9 +518,10 @@ function rerenderAll() { disposeCharts(); App.rendered = {}; App.rendered[App.ta
 function statusBar() {
   const m = D.meta, p = [];
   p.push(`<span class="pill">NSE close <b>${dateFmt(m.nse_date)}</b></span>`);
-  if (m.live) p.push(`<span class="pill live">Live ${dateFmt(m.live.date)} <b>${m.live.time}</b> · ~15 min delayed</span>`);
-  if (m.live_indices && m.live_indices.estimated && m.live_indices.estimated.length)
+  p.push(livePill());
+  if (!LV.applied && m.live_indices && m.live_indices.estimated && m.live_indices.estimated.length)
     p.push(`<span class="pill warn opt" title="${esc(m.live_indices.estimated.join(", "))}">${m.live_indices.estimated.length} index values estimated</span>`);
+  if (LV.applied && LV.est) p.push(`<span class="pill warn opt" title="Indices TradingView does not carry are estimated from their constituents' free-float-weighted moves until NSE's official close: ${esc(LV.est.join(", "))}">${LV.est.length} index values estimated</span>`);
   p.push(`<span class="pill opt">${m.indices} indices · ${m.stocks.toLocaleString("en-IN")} stocks</span>`);
   p.push(`<span class="pill opt">Updated ${esc(m.generated)}</span>`);
   $("#status").innerHTML = p.join("");
@@ -1075,11 +1080,12 @@ App.renderers.rs = function () {
 };
 
 /* ============================================================ stock drawer */
-function closeDrawer() { $("#drawer").classList.remove("open"); if (!$("#modal").classList.contains("open")) $("#overlay").classList.remove("open"); }
+function closeDrawer() { LV.openSym = null; $("#drawer").classList.remove("open"); if (!$("#modal").classList.contains("open")) $("#overlay").classList.remove("open"); }
 function openStock(sym) {
   const o = D.bySym[sym]; if (!o) return;
+  LV.openSym = sym;
   $("#drawer").classList.add("open"); $("#overlay").classList.add("open");
-  const tvk = sym.replace(/[^A-Z0-9]/g, "_");
+  const tvk = encodeURIComponent(sym.replace(/[^A-Z0-9&]/g, "_"));   // TradingView keeps "&" (M&M)
   const scr = "index.html#" + encodeURIComponent(JSON.stringify({ q: sym, conds: [] }));
   $("#dHead").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
     <div><h2>${esc(sym)} <span class="sub" style="font-size:14px;font-weight:400">${esc(o.name)}</span></h2>
@@ -1541,14 +1547,380 @@ App.renderers.method = function () {
     <li>Universes use <i>today's</i> index constituents for the whole history (survivorship bias – the past looks a little stronger than it was). "All NSE" covers main-board EQ/BE/BZ stocks that traded in the last 10 sessions.</li>
   </ul>
   <h3>Prices, adjustments and refresh</h3>
-  <p>Stock prices come from NSE's official bhavcopy and are back-adjusted for splits and bonuses (same engine as the Camarilla screener). Index values come from NSE's daily index file. During market hours (every 30 minutes) stock prices come from TradingView (~15 min delayed); index values come from TradingView where it carries them (${esc((m.live_indices && m.live_indices.tv || []).join(", ") || "Nifty 50, Bank, IT, 500, Next 50, Midcap 100, Smallcap 100 …")}) and are otherwise <b>estimated</b> from constituents' free-float-weighted moves until NSE's official close arrives after 18:15.</p>
+  <p>Stock prices come from NSE's official bhavcopy and are back-adjusted for splits and bonuses (same engine as the Camarilla screener). Index values come from NSE's daily index file. While this page is open in market hours (Mon–Fri 09:15–16:15 IST) it also fetches TradingView's prices itself once a minute (~15 min delayed) and rolls everything forward – index values, the stock table's RS metrics, weekly RRG/Mansfield/stage and all breadth indicators – with the same formulas the build uses (the green <i>Live</i> badge shows the last refresh; click it to pause). Index values come from TradingView where it carries them (${esc((m.live_indices && m.live_indices.tv || []).join(", ") || "Nifty 50, Bank, IT, 500, Next 50, Midcap 100, Smallcap 100 …")}) and are otherwise <b>estimated</b> from constituents' free-float-weighted moves until NSE's official close arrives after 18:15.</p>
   <p class="note">Educational analytics, not investment advice. Indicators describe the past; combine them with your own analysis and risk management.</p>`;
 };
+
+/* ============================================================ live prices (fetched by this page)
+   In market hours the page asks TradingView's screener feed for every NSE stock (and the 11 indices it carries)
+   once a minute (~15 min delayed, the same feed the GitHub build uses) and rolls the published data forward by
+   one session: index values (TradingView, or estimated from constituents like the build does), stock series,
+   every RS metric in the stock table, weekly RRG / Mansfield / stage, and all breadth indicators. The maths uses
+   rotation-live.js – the state after the last NSE session written by build_rotation.py – so the results match
+   what the build itself would publish with the same quotes. The published files stay the base: every refresh
+   starts from them, and NSE's official files replace the live session after the evening build. */
+const LV_URL = "https://scanner.tradingview.com/india/scan";
+const LV_EVERY = 60e3, LV_OPEN = 9 * 60 + 15, LV_STOP = 16 * 60 + 15;
+const LV = { on: true, state: "wait", applied: false, busy: false, last: 0, fails: 0, offDone: false, H: null, hState: "none",
+  B: null, date: null, hms: null, est: null, openSym: null, mode: null };
+try { LV.on = localStorage.getItem("rot.live") !== "off"; } catch (e) { /* storage unavailable */ }
+if (!LV.on) LV.state = "off";
+
+function lvNow() {
+  const t = new Date(Date.now() + 330 * 60e3);
+  return { date: t.toISOString().slice(0, 10), mins: t.getUTCHours() * 60 + t.getUTCMinutes(), dow: t.getUTCDay(), hms: t.toISOString().slice(11, 19) };
+}
+const lvInMarket = n => n.dow >= 1 && n.dow <= 5 && n.mins >= LV_OPEN && n.mins < LV_STOP;
+function lvSession(n) {
+  if (n.dow >= 1 && n.dow <= 5 && n.mins >= LV_OPEN) return n.date;
+  const t = new Date(n.date + "T00:00:00Z");
+  do t.setUTCDate(t.getUTCDate() - 1); while (t.getUTCDay() === 0 || t.getUTCDay() === 6);
+  return t.toISOString().slice(0, 10);
+}
+const lvWeek = ds => { const t = Math.round(Date.parse(ds + "T00:00:00Z") / 864e5); return t - ((t + 3) % 7 + 7) % 7; };
+const lvTvk = s => s.toUpperCase().replace(/[^A-Z0-9&]/g, "_");
+function pyRound(x, nd) {   // Python's round(): exact binary value, ties to even (toFixed rounds ties up)
+  if (!isNum(x)) return null;
+  const s = Math.abs(x).toFixed(Math.min(100, nd + 40)), dot = s.indexOf("."), cut = dot + 1 + nd;
+  if (/^50*$/.test(s.slice(cut))) {
+    const kept = s.slice(0, nd ? cut : dot), last = +kept[kept.length - 1];
+    const v = last % 2 === 0 ? +kept : +(+kept + Math.pow(10, -nd)).toFixed(nd);
+    return x < 0 ? -v : v;
+  }
+  return +x.toFixed(nd);
+}
+function sigR(x, d) {   // build_rotation.sig(): round to d significant figures
+  if (!isNum(x)) return null; if (x === 0) return 0;
+  const nd = Math.max(0, d - Math.floor(Math.log10(Math.abs(x))) - 1);
+  return pyRound(x, Math.min(nd, 20));
+}
+const rnd = (x, d) => isNum(x) ? pyRound(x, d) : null;
+function roundEven(x) { const f = Math.floor(x), r = x - f; if (r > 0.5) return f + 1; if (r < 0.5) return f; return f % 2 === 0 ? f : f + 1; }
+const fmax = (a, b) => isNum(a) ? (isNum(b) ? Math.max(a, b) : a) : (isNum(b) ? b : NaN);
+const val = x => isNum(x) ? x : NaN;
+function ewmStep(prev, x, alpha, gap) {   // pandas ewm(adjust=False) one step, incl. the weight carried across NaN gaps
+  if (!isNum(x)) return isNum(prev) ? prev : NaN;
+  if (!isNum(prev)) return x;
+  const wt = Math.pow(1 - alpha, (gap || 0) + 1);
+  return prev === x ? prev : (wt * prev + alpha * x) / (wt + alpha);
+}
+
+async function lvPost(body) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(LV_URL, { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "text/plain" }, signal: ctl.signal, cache: "no-store", credentials: "omit" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return (await r.json()).data || [];
+  } finally { clearTimeout(to); }
+}
+async function lvFetch(tvIndex) {
+  const [st, ix] = await Promise.all([
+    lvPost({ filter: [{ left: "exchange", operation: "equal", right: "NSE" }], options: { lang: "en" }, markets: ["india"],
+      symbols: { query: { types: [] }, tickers: [] }, columns: ["name", "open", "high", "low", "close", "volume"], range: [0, 10000] }),
+    lvPost({ symbols: { tickers: Object.values(tvIndex).map(t => "NSE:" + t), query: { types: [] } }, columns: ["name", "open", "high", "low", "close", "change"] }).catch(() => []),
+  ]);
+  const map = new Map(), idx = {};
+  for (const it of st) { const d = it.d || [], k = String(it.s || "").split(":").pop(); map.set(k, { o: +d[1], h: +d[2], l: +d[3], c: +d[4], v: +d[5] }); }
+  if (map.size < 500) throw new Error("only " + map.size + " stocks returned");
+  const byTv = {}; Object.entries(tvIndex).forEach(([c, t]) => { byTv[t] = c; });
+  for (const it of ix) { const t = String(it.s || "").split(":").pop(), d = it.d || []; if (byTv[t] && isNum(+d[4]) && +d[4] > 0) idx[byTv[t]] = +d[4]; }
+  return { map, idx };
+}
+
+function lvLoadHelpers() {   // rotation-live.js, only fetched when the page actually goes live
+  if (LV.hState !== "none") return;
+  LV.hState = "loading";
+  const sc = document.createElement("script");
+  sc.src = "rotation-live.js?v=" + encodeURIComponent(D.meta.generated);
+  sc.onload = () => {
+    const H = window.ROT_LIVE;
+    if (!H || !H.meta || H.meta.eod !== D.meta.nse_date) { LV.hState = "bad"; renderStatusOnly(); return; }
+    H.pos = {}; H.syms.forEach((s, i) => { H.pos[s] = i; });
+    LV.H = H; LV.hState = "ok"; lvTick(true);
+  };
+  sc.onerror = () => { LV.hState = "bad"; renderStatusOnly(); };
+  document.body.appendChild(sc);
+}
+function renderStatusOnly() { statusBar(); }
+
+/* base copies: every refresh starts again from the published files */
+const ROW_KEYS = ["close", "chg", "r1w", "r1m", "r3m", "r6m", "r1y", "rs", "rs1w", "rs4w", "rs13w", "rs_part", "mrs50", "mrs500", "mrs_sec",
+  "rsnh", "rsnh_bp", "rsnh5", "q500", "q500p", "qsec", "qsecp", "stage", "tt", "off_hi", "above_lo", "udv", "val_cr", "mcap", "deliv", "bars"];
+function lvSnapshot() {
+  LV.B = { dates: D.dates.slice(), idx: D.idx.c.map(a => a.slice()), rows: D.S.map(o => { const b = {}; ROW_KEYS.forEach(k => { b[k] = o[k]; }); return b; }), ser: null, br: null };
+  if (SER) lvSnapSer();
+  if (BR) lvSnapBr();
+}
+function lvSnapSer() { LV.B.ser = { c: SER.c.map(a => a.slice()), weeks: SER.weeks.slice(), rsr: SER.rsr.map(a => a.slice()) }; }
+function lvSnapBr() { LV.B.br = BR.universes.map(u => { const o = {}; Object.keys(u.data).forEach(k => { o[k] = u.data[k].slice(); }); return o; }); }
+function liveOnLoad(key) {
+  if (!LV.B) return;
+  if (key === "series") lvSnapSer(); else lvSnapBr();
+  if (LV.applied && LV.q) {   // recompute with the new file included, then let the waiting views render
+    const R = lvCompute(LV.q, LV.date);
+    lvRestore();
+    if (R && !R.closed) { lvWrite(R); LV.res = R; } else { LV.applied = false; LV.res = null; }
+  }
+}
+function lvRestore() {
+  const B = LV.B;
+  D.dates = B.dates.slice();
+  D.idx.codes.forEach((c, j) => { D.idx.c[j] = B.idx[j].slice(); D.idxMap[c].c = D.idx.c[j]; });
+  D.S.forEach((o, i) => Object.assign(o, B.rows[i]));
+  if (SER && B.ser) { SER.c = B.ser.c.map(a => a.slice()); SER.weeks = B.ser.weeks.slice(); SER.rsr = B.ser.rsr.map(a => a.slice()); }
+  if (BR && B.br) BR.universes.forEach((u, i) => { Object.keys(u.data).forEach(k => { u.data[k] = B.br[i][k].slice(); }); });
+  D.N = D.dates.length; D.wk = weekLastRows(D.dates);
+  Object.keys(serCache).forEach(k => delete serCache[k]);
+}
+
+/* compute the live session from the helpers and the quotes (no page state is touched here) */
+function lvCompute(q, ld) {
+  const H = LV.H, h = H.h, N = H.syms.length, eod = D.meta.nse_date;
+  const nbase = LV.B.dates.length, lastBase = LV.B.dates[nbase - 1];
+  let mode = null;
+  if (ld <= eod) return null;
+  if (lastBase === eod) mode = "append"; else if (lastBase === ld) mode = "replace"; else return null;
+  // TradingView still on the last NSE session? (same test as build_data.add_live_bars)
+  let same = 0, n = 0;
+  const T = new Array(N);
+  for (let i = 0; i < N; i++) { const t = q.map.get(lvTvk(H.syms[i])) || q.map.get(lvTvk(H.syms[i]).replace(/&/g, "_")); T[i] = t;
+    if (isNum(h.v[i]) && h.v[i] > 0 && t && t.v > 0) { n++; if (Math.round(t.v) === Math.round(h.v[i])) same++; } }
+  if (!n || same / n > 0.3) return { closed: true };
+  // live bar per stock (only stocks that traded in the last NSE session get one, as in the build)
+  const C = new Float64Array(N).fill(NaN), Cf = new Float64Array(N).fill(NaN), Hf = new Float64Array(N).fill(NaN), Lf = new Float64Array(N).fill(NaN),
+    V = new Float64Array(N).fill(NaN), VAL = new Float64Array(N).fill(NaN), traded = new Uint8Array(N);
+  let used = 0;
+  for (let i = 0; i < N; i++) {
+    const t = T[i], c0 = h.c[i];
+    if (t && isNum(h.v[i]) && t.c > 0 && t.v > 0 && isNum(c0) && t.c / c0 > 0.75 && t.c / c0 < 1.33) {
+      C[i] = t.c; traded[i] = 1; V[i] = t.v; VAL[i] = t.v * t.c; used++;
+      Hf[i] = isNum(t.h) ? t.h : NaN; Lf[i] = isNum(t.l) ? t.l : NaN; Cf[i] = t.c;
+    } else if (isNum(c0) && h.gap[i] <= 4) { Cf[i] = c0; Hf[i] = c0; Lf[i] = c0; }
+  }
+  if (!used) return { closed: true };
+  // index values: TradingView where carried, else free-float-weighted constituent moves, else carried forward
+  const ie = LV.B.dates.indexOf(eod), idxVal = {}, idxRaw = {}, est = [];
+  D.idx.codes.forEach((code, j) => {
+    const prev = H.meta.idx_prev && isNum(H.meta.idx_prev[code]) ? H.meta.idx_prev[code] : LV.B.idx[j][ie];
+    let v = NaN;
+    if (isNum(q.idx[code])) v = q.idx[code];
+    else {
+      const cols = (D.members[code] || []).map(s => H.pos[s]).filter(i => i != null);
+      if (cols.length >= 5) {
+        let sw = 0, swr = 0, k = 0;
+        for (const i of cols) { const r = C[i] / val(h.c[i]) - 1, w = val(h.c[i]) * val(h.iss[i]) * val(h.ff[i]);
+          if (isNum(r) && isNum(w) && Math.abs(r) < 0.25) { sw += w; swr += r * w; k++; } }
+        if (k >= Math.max(3, 0.6 * cols.length)) { v = prev * (1 + swr / sw); est.push(D.idxMap[code].name || code); }
+      }
+    }
+    if (!isNum(v)) v = prev;
+    idxRaw[code] = v; idxVal[code] = sigR(v, 6);   // metrics use the unrounded value, as the build does
+  });
+  const nbR = i => h.nb[i] + traded[i];
+  // RS Rating for every stock
+  const legs = [[63, 0.4, h.a63], [126, 0.2, h.a126], [189, 0.2, h.a189], [252, 0.2, h.a252]];
+  const score = new Float64Array(N).fill(NaN), part = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const c = Cf[i]; if (!isNum(c)) continue;
+    let num = 0, den = 0;
+    for (const [k, w, a] of legs) { const leg = c / a[i]; if (isNum(a[i]) && isNum(leg) && nbR(i) > k) { num += w * leg; den += w; } }
+    part[i] = den; if (den >= 0.4 - 1e-9) score[i] = num / den;
+  }
+  const ref = []; for (let i = 0; i < N; i++) if (!h.sme[i] && isNum(score[i])) ref.push(score[i]);
+  ref.sort((a, b) => a - b);
+  const rating = new Float64Array(N).fill(NaN);
+  if (ref.length >= 50) for (let i = 0; i < N; i++) if (isNum(score[i])) {
+    let lo = 0, hi = ref.length; while (lo < hi) { const m = (lo + hi) >> 1; if (ref[m] <= score[i]) lo = m + 1; else hi = m; }
+    rating[i] = Math.min(99, Math.max(1, Math.floor(lo / ref.length * 98.999) + 1));
+  }
+  // stock rows
+  const b50 = idxRaw.NIFTY50 ?? null, b500 = idxRaw.NIFTY500 ?? b50, weekOk = (lvWeek(ld) !== lvWeek(eod)) === !!H.meta.new_week;
+  const nR = H.meta.rrg_n || 10, den55 = nR * (nR + 1) / 2;
+  const rrgQ = (rs, Ka, Kb, Kc) => { if (!isNum(rs) || !isNum(Ka) || !isNum(Kb) || !isNum(Kc)) return null;
+    const w = (nR * rs + Kb) / den55, base = rs / w, ratio = 100 * (nR * base + Ka) / den55, mom = 100 * ratio / ((nR * ratio + Kc) / den55);
+    return quadOf(ratio, mom); };
+  const mansfield = (rsd, S) => isNum(rsd) && isNum(S) ? (rsd / ((S + rsd) / 52) - 1) * 100 : NaN;
+  const rows = {};
+  D.S.forEach(o => {
+    const i = H.pos[o.sym]; if (i == null) return;
+    const c = Cf[i]; if (!isNum(c)) return;
+    const r = { close: sigR(c, 6), chg: rnd((c / val(h.c[i]) - 1) * 100, 2) };
+    [[5, "r1w", h.a5], [21, "r1m", h.a21], [63, "r3m", h.a63], [126, "r6m", h.a126], [252, "r1y", h.a252]].forEach(([, k, a]) => { r[k] = rnd((c / val(a[i]) - 1) * 100, 1); });
+    r.rs = isNum(rating[i]) ? rating[i] : null; r.rs1w = h.rs5[i]; r.rs4w = h.rs20[i]; r.rs13w = h.rs63[i];
+    r.rs_part = isNum(rating[i]) ? (part[i] < 0.999 ? 1 : 0) : null;
+    const bs = o.sec && isNum(idxRaw[o.sec]) ? idxRaw[o.sec] : NaN;
+    if (weekOk) {
+      r.mrs50 = rnd(mansfield(isNum(b50) ? c / b50 : NaN, h.m50[i]), 1);
+      r.mrs500 = rnd(mansfield(isNum(b500) ? c / b500 : NaN, h.m500[i]), 1);
+      r.mrs_sec = rnd(mansfield(c / bs, h.msec[i]), 1);
+      if (isNum(b500)) { r.q500 = rrgQ(c / b500, h.k500a[i], h.k500b[i], h.k500c[i]); r.q500p = h.q500p[i]; }
+      r.qsec = rrgQ(c / bs, h.ksa[i], h.ksb[i], h.ksc[i]); r.qsecp = h.qsp[i];
+      let st = NaN;
+      if (H.meta.nwk >= 35 && isNum(h.s29[i])) {
+        const mNow = (h.s29[i] + c) / 30, slope = mNow / val(h.m4[i]) - 1, prior = mNow / val(h.m20[i]) - 1;
+        if (isNum(slope)) st = slope > 0.01 ? (c >= mNow ? 2 : 3) : slope < -0.01 ? (c < mNow ? 4 : 1) : (isNum(prior) && prior > 0.03 ? 3 : 1);
+      }
+      r.stage = isNum(st) ? st : null;
+    }
+    const hfr = Hf[i], lfr = Lf[i], fin = x => isNum(x) ? 1 : 0;
+    const cntH = h.n251[i] + fin(hfr);
+    const hiMax = fmax(val(h.h251[i]), hfr), loMin = isNum(h.l251[i]) ? (isNum(lfr) ? Math.min(h.l251[i], lfr) : h.l251[i]) : lfr;
+    const sma = (S, nn) => isNum(S) ? (S + c) / nn : NaN;
+    const s50 = sma(h.s49[i], 50), s150 = sma(h.s149[i], 150), s200 = sma(h.s199[i], 200), s200m = val(h.s200m[i]);
+    const hi52 = cntH >= 200 ? hiMax : NaN, lo52 = cntH >= 200 ? loMin : NaN;
+    const rules = [c > s150 && c > s200, s150 > s200, s200 > s200m, s50 > s150 && s50 > s200, c > s50, c >= 1.3 * lo52, c >= 0.75 * hi52, rating[i] >= 70];
+    r.tt = isNum(s200) && isNum(hi52) ? rules.filter(Boolean).length : null;
+    const hiAny = cntH >= 20 ? hiMax : NaN, loAny = cntH >= 20 ? loMin : NaN;
+    r.off_hi = isNum(hiAny) && hiAny > 0 ? rnd((c / hiAny - 1) * 100, 1) : null;
+    r.above_lo = isNum(loAny) && loAny > 0 ? rnd((c / loAny - 1) * 100, 1) : null;
+    if (isNum(b500) && h.rlmax) {
+      const rl = c / b500, cntR = h.rln[i] + fin(rl), hiR = cntR >= 126 ? fmax(val(h.rlmax[i]), rl) : NaN;
+      if (isNum(hiR)) {
+        const atHi = rl >= hiR * 0.9999, any5 = atHi || !!h.nh4[i], phi = cntH >= 126 ? hiMax : NaN;
+        r.rsnh = atHi ? 1 : 0; r.rsnh5 = any5 ? 1 : 0; r.rsnh_bp = any5 && c < phi * 0.97 ? 1 : 0;
+      } else { r.rsnh = r.rsnh5 = r.rsnh_bp = null; }
+    }
+    const ch = c - val(h.c[i]), vr = V[i];
+    const up = val(h.up49[i]) + (ch > 0 && isNum(vr) ? vr : 0), dn = val(h.dn49[i]) + (ch < 0 && isNum(vr) ? vr : 0);
+    r.udv = isNum(up / dn) ? rnd(up / dn, 2) : null;
+    const nv = h.nval19[i] + fin(VAL[i]);
+    r.val_cr = nv ? rnd((val(h.val19[i]) + (isNum(VAL[i]) ? VAL[i] : 0)) / nv / 1e7, 2) : null;
+    r.deliv = rnd(h.dl9[i], 1);
+    r.mcap = rnd(c * val(h.iss[i]) / 1e7, 0);
+    r.bars = nbR(i);
+    rows[o.sym] = r;
+  });
+  // breadth diffusion for the live session
+  const bre = {};
+  const conds = new Array(N);
+  for (let i = 0; i < N; i++) {
+    const c = Cf[i], alive = traded[i] || h.al9[i], nb = nbR(i), x = {};
+    for (const [nn, S] of [[20, h.s19], [50, h.s49], [100, h.s99], [200, h.s199]]) { const m = isNum(S[i]) && isNum(c) ? (S[i] + c) / nn : NaN; x["a" + nn] = [alive && isNum(m), c > m]; }
+    const d = c - val(h.c[i]);
+    const ru = ewmStep(h.ru[i], isNum(d) ? Math.max(d, 0) : NaN, 1 / 14, h.gr[i]), rd = ewmStep(h.rd[i], isNum(d) ? Math.max(-d, 0) : NaN, 1 / 14, h.gr[i]);
+    const rsi = rd === 0 ? 100 : 100 - 100 / (1 + ru / rd);
+    x.rsi = [alive && nb > 15 && isNum(rsi), rsi >= 50];
+    const e12 = ewmStep(h.e12[i], c, 2 / 13, h.gc[i]), e26 = ewmStep(h.e26[i], c, 2 / 27, h.gc[i]), line = e12 - e26, sg = ewmStep(h.sg[i], line, 2 / 10, h.gs[i]);
+    x.macd = [alive && nb > 35, line > sg];
+    const hfr = Hf[i], lfr = Lf[i], pc = val(h.c[i]);
+    const tr = fmax(hfr - lfr, fmax(Math.abs(hfr - pc), Math.abs(lfr - pc)));
+    const upm = hfr - val(h.hp[i]), dnm = val(h.lp[i]) - lfr;
+    let pdm = upm > dnm && upm > 0 ? upm : 0, ndm = dnm > upm && dnm > 0 ? dnm : 0;
+    if (!isNum(tr)) { pdm = NaN; ndm = NaN; }
+    const atr = ewmStep(h.atr[i], tr, 1 / 14, h.gt[i]), ep = ewmStep(h.ep[i], pdm, 1 / 14, h.gt[i]), en = ewmStep(h.en[i], ndm, 1 / 14, h.gt[i]);
+    const pdi = 100 * ep / atr, ndi = 100 * en / atr, dx = 100 * Math.abs(pdi - ndi) / (pdi + ndi);
+    const adx = ewmStep(h.adx[i], isNum(dx) ? dx : NaN, 1 / 14, h.gx[i]);
+    x.adx = [alive && nb > 28 && isNum(adx), adx >= 25];
+    const d5 = c - val(h.a5[i]);
+    const mu = ewmStep(h.mu[i], isNum(d5) ? Math.max(d5, 0) : NaN, 1 / 20, h.gm[i]), md = ewmStep(h.md[i], isNum(d5) ? Math.max(-d5, 0) : NaN, 1 / 20, h.gm[i]);
+    const rm = mu + md === 0 ? 50 : 100 * mu / (mu + md);
+    x.rmi = [alive && nb > 25 && isNum(rm), rm > 50];
+    for (const [key, nn, HH, LL, NN] of [["1m", 21, h.h20, h.l20, h.n20], ["3m", 63, h.h62, h.l62, h.n62], ["52", 252, h.h251, h.l251, h.n251]]) {
+      const mp = Math.floor(nn * 0.8), cnt = NN[i] + (isNum(hfr) ? 1 : 0);
+      const hh = cnt >= mp ? fmax(val(HH[i]), hfr) : NaN, ll = cnt >= mp ? (isNum(LL[i]) ? (isNum(lfr) ? Math.min(LL[i], lfr) : LL[i]) : lfr) : NaN;
+      const ok = !!traded[i] && isNum(hh) && nb >= mp;
+      x["h" + key] = [ok, hfr >= hh]; x["l" + key] = [ok, lfr <= ll];
+    }
+    const cg = C[i] / val(h.c[i]) - 1, okc = !!traded[i] && isNum(h.c[i]);
+    x.chg = okc ? cg : NaN;
+    conds[i] = x;
+  }
+  const PK = ["a20", "a50", "a100", "a200", "rsi", "macd", "adx", "rmi", "h1m", "h3m", "h52", "l1m", "l3m", "l52"];
+  const uniCols = code => code === "FO" ? H.syms.map((_, i) => i).filter(i => h.fo[i]) : code === "ALL" ? H.syms.map((_, i) => i).filter(i => !h.sme[i])
+    : (D.members[code] || []).map(s => H.pos[s]).filter(i => i != null);
+  if (BR) BR.universes.forEach(u => {
+    const cols = uniCols(u.code), o = {};
+    PK.forEach(k => { let nok = 0, nc = 0; cols.forEach(i => { const [vv, cc] = conds[i][k]; if (vv) { nok++; if (cc) nc++; } });
+      o[k] = nok >= Math.max(3, 0.2 * u.n) ? roundEven(1000 * nc / nok) : null; });
+    let adv = 0, dec = 0, unch = 0, up4 = 0, dn4 = 0;
+    cols.forEach(i => { const g = conds[i].chg; if (!isNum(g)) return; if (g > 0) adv++; if (g < 0) dec++; if (g === 0) unch++; if (g >= 0.04) up4++; if (g <= -0.04) dn4++; });
+    Object.assign(o, { adv, dec, unch, up4, dn4 });
+    bre[u.code] = o;
+  });
+  // series closes and the weekly RS-rating history
+  const ser = {};
+  if (SER) SER.syms.forEach(s => { const i = H.pos[s]; ser[s] = i == null ? null : sigR(Cf[i], 5); });
+  const rsrNow = {}; if (SER) SER.syms.forEach(s => { const i = H.pos[s]; rsrNow[s] = i != null && isNum(rating[i]) ? rating[i] : null; });
+  return { mode, ld, idxVal, rows, bre, ser, rsrNow, est, used };
+}
+
+/* write a computed live session into the page's data (after lvRestore) */
+function lvWrite(R) {
+  const add = (arr, v) => { if (R.mode === "append") arr.push(v); else arr[arr.length - 1] = v; };
+  add(D.dates, R.ld);
+  D.idx.codes.forEach((c, j) => { add(D.idx.c[j], R.idxVal[c]); D.idxMap[c].c = D.idx.c[j]; });
+  D.S.forEach(o => { const r = R.rows[o.sym]; if (r) Object.assign(o, r); o.lv = !!r; });
+  if (SER && LV.B.ser) {
+    SER.syms.forEach((s, k) => { if (s in R.ser) add(SER.c[k], R.ser[s]); });
+    const newWk = lvWeek(R.ld) !== lvWeek(SER.weeks[SER.weeks.length - 1]);
+    if (newWk) { SER.weeks.push(R.ld); if (SER.weeks.length > 52) SER.weeks.shift(); }
+    else SER.weeks[SER.weeks.length - 1] = R.ld;
+    SER.syms.forEach((s, k) => { const a = SER.rsr[k]; if (!a) return; if (newWk) { a.push(R.rsrNow[s]); if (a.length > 52) a.shift(); } else a[a.length - 1] = R.rsrNow[s]; });
+  }
+  if (BR && LV.B.br) BR.universes.forEach(u => { const o = R.bre[u.code]; if (!o) return; Object.keys(u.data).forEach(k => { if (k in o) add(u.data[k], o[k]); }); });
+  D.N = D.dates.length; D.wk = weekLastRows(D.dates);
+  Object.keys(serCache).forEach(k => delete serCache[k]);
+}
+
+function lvRefreshViews() {
+  if (RRG.timer) return;   // don't disturb a running RRG animation; the next refresh catches up
+  rerenderAll(); statusBar();
+  if (LV.openSym && $("#drawer").classList.contains("open")) { const y = $("#drawer").scrollTop; openStock(LV.openSym); $("#drawer").scrollTop = y; }
+}
+
+async function lvTick(force) {
+  if (!D || !LV.on || LV.busy || document.hidden) return;
+  const n = lvNow(), open = lvInMarket(n);
+  if (open) LV.offDone = false; else if (LV.offDone && !force) return;
+  if (!force && Date.now() - LV.last < LV_EVERY - 5e3) return;
+  const ld = lvSession(n);
+  if (D.meta.nse_date >= ld) { LV.state = "final"; LV.offDone = !open; statusBar(); return; }
+  if (LV.hState === "none") { LV.state = "load"; statusBar(); lvLoadHelpers(); return; }
+  if (LV.hState === "loading") return;
+  if (LV.hState === "bad") { LV.state = "nohelp"; statusBar(); return; }
+  LV.busy = true; LV.last = Date.now();
+  if (!LV.applied && LV.state !== "err") { LV.state = "load"; statusBar(); }
+  try {
+    const q = await lvFetch(LV.H.meta.tv_index || {});
+    if (!LV.on) return;
+    const R = lvCompute(q, ld);
+    LV.fails = 0; LV.offDone = !open; LV.hms = n.hms; LV.time = n.hms.slice(0, 5);
+    lvRestore();
+    if (R && !R.closed) { lvWrite(R); LV.res = R; LV.q = q; LV.applied = true; LV.date = ld; LV.est = R.est.length ? R.est : null; LV.state = open ? "live" : "after"; }
+    else { LV.res = null; LV.applied = false; LV.est = null; LV.state = R && R.closed ? "closed" : "final"; D.S.forEach(o => { o.lv = false; }); }
+    lvRefreshViews();
+  } catch (e) {
+    LV.fails++; LV.err = String(e && e.message || e); LV.state = "err"; if (!open) LV.offDone = true; statusBar();
+  } finally { LV.busy = false; }
+}
+function lvToggle() {
+  LV.on = !LV.on;
+  try { localStorage.setItem("rot.live", LV.on ? "on" : "off"); } catch (e) { /* storage unavailable */ }
+  if (LV.on) { LV.state = "wait"; LV.offDone = false; statusBar(); lvTick(true); }
+  else { if (LV.applied) { lvRestore(); LV.applied = false; LV.res = null; D.S.forEach(o => { o.lv = false; }); } LV.state = "off"; lvRefreshViews(); }
+}
+function livePill() {
+  const m = D.meta, s = LV.state;
+  const built = m.live ? `<span class="pill live" title="Prices in the published file (GitHub build)"><span class="dot"></span>Published live ${dateFmt(m.live.date)} <b>${esc(m.live.time)}</b></span>` : "";
+  const tip = "Prices from TradingView's screener feed (about 15 minutes delayed), refreshed every minute while this page is open in market hours. Click to pause or resume.";
+  const btn = (cls, html, t) => `<button class="pill ${cls}" id="livePill" title="${esc(t || tip)}">${html}</button>`;
+  if (s === "off") return btn("", "❚❚ Live prices paused", "Live refresh is paused; showing the published files. Click to resume.") + built;
+  if (s === "live") return btn("live", `<span class="dot on"></span>Live ${dateFmt(LV.date)} <b>${LV.hms}</b> IST <span style="opacity:.75">· ~15 min delayed</span>`);
+  if (s === "after") return btn("live", `<span class="dot"></span>${dateFmt(LV.date)} prices <b>${LV.time}</b> IST <span style="opacity:.75">· market closed · NSE close after ~7 pm</span>`);
+  if (s === "final") return btn("", `<span class="dot"></span>NSE official close`, "The files already have NSE's official close for the latest session. Click to pause live refresh.");
+  if (s === "closed") return btn("", `<span class="dot"></span>Live: no trading yet this session`, "TradingView is still showing the last NSE session (weekend, holiday or before the 09:15 open). Checks again every minute in market hours.") + built;
+  if (s === "nohelp") return btn("warn", "Live prices unavailable", "rotation-live.js is missing or out of date – it is written by the GitHub build; run the workflow once.") + built;
+  if (s === "err") return btn("warn", `Live prices unavailable${LV.fails > 1 ? " · retrying" : ""}`, `Could not reach TradingView (${LV.err || "error"}); showing the published files. Retries every minute.`) + built;
+  return btn("", `<span class="dot"></span>Live prices: connecting…`) + built;
+}
 
 /* ============================================================ boot */
 function boot() {
   if (!window.ROT_DATA) { $("#banner").textContent = "rotation-data.js was not found. Run the GitHub workflow once (Actions → Update screener data → Run workflow) and reload."; $("#status").innerHTML = ""; return; }
-  initData(); applyUpDown(); statusBar();
+  initData(); lvSnapshot(); applyUpDown(); statusBar();
+  $("#status").addEventListener("click", e => { if (e.target.closest("#livePill")) lvToggle(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) lvTick(false); });
+  setInterval(() => lvTick(false), 15e3);   // fetches at most once a minute, only in market hours
   const navTop = () => { if (innerWidth > 700) $("#tabs").style.top = $("header").offsetHeight + "px"; };
   navTop(); window.addEventListener("resize", debounce(navTop, 100));
   $$("#tabs button").forEach(b => b.onclick = () => setTab(b.dataset.t));
@@ -1562,6 +1934,7 @@ function boot() {
   setTab((location.hash.slice(1) || LS.get("tab", "overview")), false);
   loadScript("rotation-series.js", "series", "ROT_SERIES");
   loadScript("breadth-data.js", "breadth", "BREADTH");
+  lvTick(true);
 }
 (function () {
   const sc = document.createElement("script");

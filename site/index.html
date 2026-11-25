@@ -893,7 +893,7 @@ function openDetail(o){
   const zoneRow = tfs.map(t => `<td><span class="zone ${zoneOf(o.close, LV[t], S.type).cls}">${esc(zoneOf(o.close, LV[t], S.type).z)}</span></td>`).join("");
   const lvRows = names.map(n => `<tr><td class="l"><b>${n}</b></td>${tfs.map(t => `<td class="${nearest[t]===n?"hit":""}">${fmt(LV[t]?LV[t][n]:null,"p")}</td>`).join("")}</tr>`).join("");
   const per = tfs.map(t => `<th>${TF_NAMES[t]}<div class="sub" style="font-weight:400">${esc(S.basis==="cur"?(PER[t].cur):"next")}</div></th>`).join("");
-  const tvSym = o.sym.replace(/[^A-Za-z0-9]/g, "_");
+  const tvSym = o.sym.replace(/[^A-Za-z0-9&]/g, "_");   // TradingView keeps "&" (M&M)
   $("drawer").innerHTML = `
     <div class="dhead">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">

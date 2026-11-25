@@ -846,6 +846,23 @@ def main() -> int:
     (site / "smartmoney-data.js").write_text(js, encoding="utf-8")
     log(f"wrote smartmoney-data.js ({len(js) / 1e6:.2f} MB)")
 
+    # roll helpers for the page's own live refresh (state after the last NSE session; a provisional row is left out)
+    sl = slice(0, te + 1)
+    lh = live_helpers(syms, dates[sl], C[sl], V[sl], ISS[sl], Cf[sl], Hf[sl], Lf[sl], traded[sl], nbars[sl], SMA50[sl],
+                      SMA200[sl], H52[sl], LIQ[sl], {k: v[sl] for k, v in conds.items()}, zone_ev[sl], BIAS[sl],
+                      {i: [z for z in zl if z[0] <= te] for i, zl in zones_of.items()}, trng[sl])
+    lh["meta"]["generated"] = gen
+    # exact closes behind the recent-signal prices (the data file rounds them), for "return since" with live prices
+    lh["rc"] = {}
+    for rw in recent:
+        if rw[11]:
+            continue
+        t = dates.get_loc(pd.Timestamp(rw[0]))
+        lh["rc"].setdefault(rw[0], {})[rw[1]] = float(Cf[t, col_of[rw[1]]])
+    js = "window.SM_LIVE=" + json.dumps(br.clean(lh), separators=(",", ":"), allow_nan=False) + ";\n"
+    (site / "smartmoney-live.js").write_text(js, encoding="utf-8")
+    log(f"wrote smartmoney-live.js ({len(js) / 1e6:.2f} MB)")
+
     # per-stock history shards
     hdir = site / "sm-hist"
     hdir.mkdir(parents=True, exist_ok=True)
@@ -877,6 +894,98 @@ def main() -> int:
         (hdir / f"h{k:02d}.js").write_text(js, encoding="utf-8")
     log(f"wrote {SHARDS} history shard(s) in sm-hist/ ({sum((hdir / f'h{k:02d}.js').stat().st_size for k in range(SHARDS)) / 1e6:.1f} MB)")
     return 0
+
+
+LIVE_SETUPS = [("RETEST", 10), ("POCKET", 3), ("SPRING", 10), ("UPTHRUST", 10), ("VCP", 10), ("EP", 10)]  # price/volume only
+
+
+def live_helpers(syms, dates, C, V, ISS, Cf, Hf, Lf, traded, nbars, SMA50, SMA200, H52, LIQ, conds, zone_ev, BIAS, zones_of, trng):
+    """State after the last NSE session (arrays end there) so smartmoney.html can roll the live session forward
+    from TradingView quotes exactly as this script does: price columns, projected RVOL and the live setups."""
+    T, N = Cf.shape
+    e = T - 1
+
+    def f(x):
+        try:
+            v = float(x)
+        except (TypeError, ValueError):
+            return None
+        return v if math.isfinite(v) else None
+
+    def prior(a, n, fn, minp=None):  # window of the n-1 rows before the next session
+        blk = a[max(0, T - (n - 1)):]
+        fin = np.isfinite(blk)
+        cnt = fin.sum(axis=0)
+        with np.errstate(invalid="ignore"):
+            if fn == "sum":
+                return np.where(fin, blk, 0).sum(axis=0), cnt
+            if fn == "max":
+                return np.where(fin, blk, -np.inf).max(axis=0), cnt
+            return np.where(fin, blk, np.inf).min(axis=0), cnt
+
+    H = {}
+    put = lambda k, arr: H.__setitem__(k, [f(x) for x in arr])  # noqa: E731
+    put("c", Cf[e]); put("v", np.where(np.isfinite(C[e]), V[e], np.nan)); put("iss", ISS[e])
+    put("a5", Cf[e - 4] if e >= 4 else np.full(N, np.nan)); put("a20", Cf[e - 19] if e >= 19 else np.full(N, np.nan))
+    put("sma50", SMA50[e]); put("sma200", SMA200[e]); put("h52", H52[e])
+    blk = V[max(0, T - 20):]
+    cnt = np.isfinite(blk).sum(axis=0)
+    with np.errstate(invalid="ignore"):
+        put("v20", np.where(cnt >= 10, np.nansum(blk, axis=0) / np.maximum(cnt, 1), np.nan))
+    ret = div(Cf, shift(Cf, 1)) - 1
+    dn_vol = np.nan_to_num(np.where(ret < 0, V, 0))
+    put("mdn10", np.where(min(10, T) >= 5, dn_vol[max(0, T - 10):].max(axis=0), np.nan))
+    s, n = prior(Cf, 10, "sum"); put("s9", np.where(n == 9, s, np.nan))
+    for nn, key in ((50, "49"), (200, "199")):
+        s, n = prior(Cf, nn, "sum"); put("s" + key, s); H["n" + key] = n.astype(int).tolist()
+    m, n = prior(Hf, 250, "max"); put("h249", m); H["nh249"] = n.astype(int).tolist()
+    blk = Lf[max(0, T - 40):]
+    put("l40", np.where(np.isfinite(blk).sum(axis=0) >= 30, np.where(np.isfinite(blk), blk, np.inf).min(axis=0), np.nan))
+    blk = Hf[max(0, T - 40):]
+    put("h40", np.where(np.isfinite(blk).sum(axis=0) >= 30, np.where(np.isfinite(blk), blk, -np.inf).max(axis=0), np.nan))
+    s, n = prior(trng, 10, "sum"); put("t9", np.where(n == 9, s, np.nan))
+    s, n = prior(trng, 50, "sum"); put("t49", s); H["nt49"] = n.astype(int).tolist()
+    for nn, key in ((10, "9"), (50, "49")):
+        s, n = prior(V, nn, "sum"); put("v" + key, s); H["nv" + key] = n.astype(int).tolist()
+    pc = np.zeros(N, dtype=int)
+    for bit, (code, cool) in enumerate(LIVE_SETUPS):
+        c = np.nan_to_num(conds[code][max(0, T - cool):].astype(float)) > 0
+        pc |= (c.any(axis=0).astype(int) << bit)
+    H["pc"] = pc.tolist()
+    H["liq"] = [int(x) for x in LIQ[e]]
+    H["nb"] = nbars[e].astype(int).tolist()
+    fin = np.isfinite(C)
+    last_t = np.where(fin.any(axis=0), T - 1 - np.argmax(fin[::-1], axis=0), -1)
+    H["lt"] = [str(pd.Timestamp(dates[t]).date()) if t >= 0 else None for t in last_t]   # last NSE session traded
+    # buy-side SMF zones whose retest watch (60 sessions after the zone day) is still open at the next session
+    armed = []
+    for i in range(N):
+        out = []
+        for t in np.flatnonzero(zone_ev[:, i]):
+            if t + 60 < T or not (BIAS[t, i] >= 0.3):
+                continue
+            lo, hi = Lf[t, i], Hf[t, i]
+            ran, done = False, False
+            for u in range(t + 1, T):
+                if Hf[u, i] >= hi * 1.05:
+                    ran = True
+                elif ran and Lf[u, i] <= hi and Cf[u, i] >= lo:
+                    done = True
+                    break
+                if Cf[u, i] < lo:
+                    done = True
+                    break
+            if not done:
+                out.append([f(lo), f(hi), int(ran)])
+        armed.append(out or None)
+    H["zr"] = armed
+    last = [zones_of.get(i)[-1] if zones_of.get(i) else None for i in range(N)]
+    H["zlo"] = [f(z[1]) if z else None for z in last]; H["zhi"] = [f(z[2]) if z else None for z in last]
+    H["zvw"] = [f(z[3]) if z else None for z in last]
+    nxt = bd.next_weekday(pd.Timestamp(dates[-1]))
+    meta = {"eod": str(pd.Timestamp(dates[-1]).date()), "next": str(nxt.date()), "setups": [c for c, _ in LIVE_SETUPS],
+            "vol_curve": VOL_CURVE}
+    return {"meta": meta, "syms": list(syms), "h": H}
 
 
 def shard_of(sym: str) -> int:

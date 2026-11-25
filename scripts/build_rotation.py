@@ -476,7 +476,224 @@ def main() -> int:
     dump("rotation-data.js", "ROT_DATA", clean(core))
     dump("rotation-series.js", "ROT_SERIES", clean(ser))
     dump("breadth-data.js", "BREADTH", clean(bre))
+
+    # roll helpers: state after the last NSE session (a provisional live row, if any, is left out), so the page
+    # can apply TradingView quotes itself every minute in market hours
+    te = int(dates.searchsorted(nse_date))
+    if te < T and dates[te] == nse_date:
+        fl = {}
+        if tv is not None and "float_pct" in tv.columns:
+            fl = {k: v for k, v in zip(tv["tv"], pd.to_numeric(tv["float_pct"], errors="coerce")) if pd.notna(v)}
+        float_w = np.array([fl.get(fnd.tv_key(s), 50.0) for s in syms], dtype=float) / 100.0
+        sl = slice(0, te + 1)
+        lh = live_helpers(syms, dates[sl], C[sl], Cf[sl], Hf[sl], Lf[sl], V[sl], VAL[sl], ISS[sl], DEL[sl], traded[sl],
+                          nbars[sl], sme, None if b50 is None else b50[sl], None if b500 is None else b500[sl], IC[sl],
+                          idx_codes, sec_idx, float_w, fo_set)
+        lh["meta"]["generated"] = gen
+        dump("rotation-live.js", "ROT_LIVE", clean(lh))
     return 0
+
+
+# --------------------------------------------------------------------------- live-roll helpers (rotation-live.js)
+def _g10(x):
+    """Exact float (the page recomputes the build's rounded outputs, so helper values must not be rounded)."""
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _trail_nan(a: np.ndarray) -> np.ndarray:
+    """Per column: number of NaN values at the end (0 if the last value is finite)."""
+    fin = np.isfinite(a)
+    out = np.zeros(a.shape[1], dtype=int)
+    alive = np.ones(a.shape[1], dtype=bool)
+    for t in range(a.shape[0] - 1, -1, -1):
+        alive &= ~fin[t]
+        if not alive.any():
+            break
+        out += alive
+    return out
+
+
+def _prior(a: np.ndarray, n: int, fn: str):
+    """Window of the n-1 rows before the next session (rows T-n+1 .. T-1)."""
+    blk = a[max(0, a.shape[0] - (n - 1)):]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        if fn == "sum_all":  # sum only if all n-1 values exist (rolling(n, min_periods=n))
+            ok = np.isfinite(blk).all(axis=0) & (blk.shape[0] == n - 1)
+            return np.where(ok, np.nansum(blk, axis=0), np.nan)
+        if fn == "max":
+            return np.nanmax(np.where(np.isfinite(blk), blk, -np.inf), axis=0)
+        if fn == "min":
+            return np.nanmin(np.where(np.isfinite(blk), blk, np.inf), axis=0)
+        if fn == "count":
+            return np.isfinite(blk).sum(axis=0)
+    raise ValueError(fn)
+
+
+def live_helpers(syms, dates, C, Cf, Hf, Lf, V, VAL, ISS, DEL, traded, nbars, sme, b50, b500, IC, idx_codes,
+                 sec_idx, float_w, fo_set):
+    """State after the last NSE session, so the page can roll every metric forward by one live session
+    (TradingView quotes) exactly as this script would. All arrays must end at the last NSE EOD session."""
+    T, N = Cf.shape
+    e = T - 1
+    nxt = bd.next_weekday(dates[-1])
+    wk_of = lambda d: int(np.datetime64(d, "D").astype(np.int64)) - (int(np.datetime64(d, "D").astype(np.int64)) + 3) % 7  # noqa: E731
+    new_week = wk_of(nxt) != wk_of(dates[-1])
+    H = {}
+
+    def put(k, arr, f=_g10):
+        H[k] = [f(x) for x in arr]
+
+    put("c", Cf[e]); put("v", np.where(traded[e], V[e], np.nan)); put("iss", ISS[e]); put("ff", float_w)
+    gap = np.zeros(N, dtype=int)
+    run = np.ones(N, dtype=bool)
+    for t in range(e, max(-1, e - 8), -1):
+        run &= ~traded[t]
+        gap += run
+    H["gap"] = gap.tolist()
+    for k in (5, 21, 63, 126, 189, 252):
+        put(f"a{k}", Cf[e + 1 - k] if e + 1 - k >= 0 else np.full(N, np.nan))
+    H["nb"] = nbars[e].astype(int).tolist()
+
+    # RS Rating at the rows 5 / 20 / 63 sessions before the next one
+    legs = [(63, 0.4), (126, 0.2), (189, 0.2), (252, 0.2)]
+
+    def rating_row(t):
+        if t < 0:
+            return np.full(N, np.nan)
+        num = np.zeros(N)
+        den = np.zeros(N)
+        for k, w in legs:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                leg = Cf[t] / Cf[t - k] if t - k >= 0 else np.full(N, np.nan)
+            ok = np.isfinite(leg) & (nbars[t] > k)
+            num += np.where(ok, w * leg, 0)
+            den += np.where(ok, w, 0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            s_t = np.where(den >= 0.4 - 1e-9, num / den, np.nan)
+        ref = np.sort(s_t[~sme & np.isfinite(s_t)])
+        out = np.full(N, np.nan)
+        if len(ref) >= 50:
+            fin = np.isfinite(s_t)
+            out[fin] = np.clip(np.floor(np.searchsorted(ref, s_t[fin], side="right") / len(ref) * 98.999) + 1, 1, 99)
+        return out
+
+    for k, key in ((5, "rs5"), (20, "rs20"), (63, "rs63")):
+        put(key, rating_row(e + 1 - k), lambda x: None if not np.isfinite(x) else int(x))
+
+    # weekly: Mansfield (52-week SMA of the RS line), RRG (n = RRG_N_WEEKLY) and Weinstein stage
+    wk = week_last_rows(dates)
+    hist = wk if new_week else wk[:-1]
+    Cw = Cf[hist]
+    sec_cols = np.array([idx_codes.index(sec_idx[s]) if sec_idx.get(s) in idx_codes else -1 for s in syms])
+    SB = np.full((len(hist), N), np.nan)
+    for j in set(sec_cols.tolist()):
+        if j >= 0:
+            SB[:, sec_cols == j] = IC[hist, j].reshape(-1, 1)
+    n = RRG_N_WEEKLY
+    wts = np.arange(n - 1, 0, -1, dtype=float)  # weights of weeks W-1 .. W-9
+
+    def kpart(a):  # sum_{i=1..n-1} (n-i) * a[W-i]   (NaN unless all present)
+        if a.shape[0] < n - 1:
+            return np.full(N, np.nan)
+        blk = a[-(n - 1):][::-1]
+        return (blk * wts.reshape(-1, 1)).sum(axis=0)
+
+    for key, bw in (("50", None if b50 is None else b50[hist].reshape(-1, 1)), ("500", None if b500 is None else b500[hist].reshape(-1, 1)), ("sec", SB)):
+        if bw is None:
+            put("m" + key, np.full(N, np.nan))
+            continue
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rsd = Cw / bw
+        blk = rsd[-51:]
+        ok = np.isfinite(blk).all(axis=0) & (blk.shape[0] == 51)
+        put("m" + key, np.where(ok, blk.sum(axis=0), np.nan))
+        if key == "50":
+            continue
+        with np.errstate(divide="ignore", invalid="ignore"):
+            w_ = wma(rsd, n)
+            base = rsd / w_
+            ratio = 100 * wma(base, n)
+            mom = 100 * ratio / wma(ratio, n)
+        tag = "500" if key == "500" else "s"
+        put(f"k{tag}a", kpart(base)); put(f"k{tag}b", kpart(rsd)); put(f"k{tag}c", kpart(ratio))
+        H[f"q{tag}p"] = [quadrant(ratio[-1, i], mom[-1, i]) if len(hist) else None for i in range(N)]
+    ma30 = sma(Cw, 30)
+    blk = Cw[-29:]
+    ok = np.isfinite(blk).all(axis=0) & (blk.shape[0] == 29)
+    put("s29", np.where(ok, blk.sum(axis=0), np.nan))
+    nwk = len(hist) + 1
+    put("m4", ma30[-4] if len(hist) >= 4 else np.full(N, np.nan))
+    put("m20", (ma30[-20] if nwk > 21 else ma30[0]) if len(hist) else np.full(N, np.nan))
+    H_meta = {"new_week": bool(new_week), "nwk": nwk}
+
+    # daily windows ending at the next session
+    for nn in (20, 50, 100, 150, 200):
+        put(f"s{nn - 1}", _prior(Cf, nn, "sum_all"))
+    s200 = sma(Cf, 200)
+    put("s200m", s200[e - 20] if e - 20 >= 0 else np.full(N, np.nan))
+    for nn in (21, 63, 252):
+        put(f"h{nn - 1}", _prior(Hf, nn, "max")); put(f"l{nn - 1}", _prior(Lf, nn, "min"))
+        H[f"n{nn - 1}"] = _prior(Hf, nn, "count").astype(int).tolist()
+    H = {k: [None if (isinstance(x, float) and not math.isfinite(x)) else x for x in v] for k, v in H.items()}
+    if b500 is not None:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rl = Cf / b500.reshape(-1, 1)
+        put("rlmax", _prior(rl, 252, "max"))
+        H["rln"] = _prior(rl, 252, "count").astype(int).tolist()
+        hi = pd.DataFrame(rl).rolling(252, min_periods=126).max().to_numpy()
+        at_hi = rl >= hi * 0.9999
+        H["nh4"] = [int(x) for x in at_hi[-4:].any(axis=0)]
+    chg = Cf - shift(Cf, 1)
+    v49, c49 = V[-49:], chg[-49:]
+    with np.errstate(invalid="ignore"):
+        put("up49", np.nansum(np.where(c49 > 0, v49, 0), axis=0)); put("dn49", np.nansum(np.where(c49 < 0, v49, 0), axis=0))
+    put("val19", np.nansum(VAL[-19:], axis=0)); H["nval19"] = np.isfinite(VAL[-19:]).sum(axis=0).astype(int).tolist()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        put("dl9", np.nanmean(DEL[-9:], axis=0))
+    H["al9"] = [int(x) for x in traded[-9:].any(axis=0)]
+    H["sme"] = [int(bool(x)) for x in sme]
+    H["fo"] = [int(s in fo_set) for s in syms]
+
+    # indicator states for the breadth diffusion (ewm(adjust=False) carries a weight across NaN gaps)
+    d = np.diff(Cf, axis=0, prepend=np.nan)
+    upi = np.where(np.isnan(d), np.nan, np.clip(d, 0, None))
+    dni = np.where(np.isnan(d), np.nan, np.clip(-d, 0, None))
+    put("ru", ewm(upi, alpha=1 / 14)[e]); put("rd", ewm(dni, alpha=1 / 14)[e]); H["gr"] = _trail_nan(d).tolist()
+    e12, e26 = ewm(Cf, span=12), ewm(Cf, span=26)
+    line = e12 - e26
+    put("e12", e12[e]); put("e26", e26[e]); put("sg", ewm(line, span=9)[e])
+    H["gc"] = _trail_nan(Cf).tolist(); H["gs"] = _trail_nan(line).tolist()
+    pc, ph, pl = shift(Cf, 1), shift(Hf, 1), shift(Lf, 1)
+    tr = np.fmax(Hf - Lf, np.fmax(np.abs(Hf - pc), np.abs(Lf - pc)))
+    upm, dnm = Hf - ph, pl - Lf
+    pdm = np.where((upm > dnm) & (upm > 0), upm, 0.0)
+    ndm = np.where((dnm > upm) & (dnm > 0), dnm, 0.0)
+    pdm[np.isnan(tr)] = np.nan
+    ndm[np.isnan(tr)] = np.nan
+    atr = ewm(tr, alpha=1 / 14)
+    ep, en = ewm(pdm, alpha=1 / 14), ewm(ndm, alpha=1 / 14)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        pdi, ndi = 100 * ep / atr, 100 * en / atr
+        dx = 100 * np.abs(pdi - ndi) / (pdi + ndi)
+    put("atr", atr[e]); put("ep", ep[e]); put("en", en[e]); put("adx", ewm(dx, alpha=1 / 14)[e])
+    H["gt"] = _trail_nan(tr).tolist(); H["gx"] = _trail_nan(dx).tolist()
+    put("hp", Hf[e]); put("lp", Lf[e])
+    d5 = Cf - shift(Cf, 5)
+    put("mu", ewm(np.where(np.isnan(d5), np.nan, np.clip(d5, 0, None)), alpha=1 / 20)[e])
+    put("md", ewm(np.where(np.isnan(d5), np.nan, np.clip(-d5, 0, None)), alpha=1 / 20)[e])
+    H["gm"] = _trail_nan(d5).tolist()
+    H = {k: [None if (isinstance(x, float) and not math.isfinite(x)) else x for x in v] for k, v in H.items()}
+    meta = {"eod": str(pd.Timestamp(dates[-1]).date()), "next": str(nxt.date()), **H_meta,
+            "tv_index": ni.TV_INDEX, "rrg_n": RRG_N_WEEKLY,
+            # unrounded index closes of the last session (the data file keeps 6 significant digits)
+            "idx_prev": {c: _g10(IC[e, j]) for j, c in enumerate(idx_codes)}}
+    return {"meta": meta, "syms": list(syms), "h": H}
 
 
 def clean(o):
