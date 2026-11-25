@@ -308,7 +308,7 @@ ATALREAL,Atal Realtech Limited,stock,Consumer Durables,Homebuilding,5.4175000000
 ATAM,Atam Valves Ltd.,stock,Producer Manufacturing,Industrial Machinery,
 ATCENERGY,Atc Energies System Limited,stock,Producer Manufacturing,Electrical Products,21.5428
 ATGL,Adani Total Gas Ltd.,stock,Utilities,Gas Distributors,20.249699999999997
-ATHERENERG,Ather Energy Limited,stock,Consumer Durables,Motor Vehicles,48.906000000000006
+ATHERENERG,Ather Energy Limited,stock,Consumer Durables,Motor Vehicles,48.906
 ATL,Allcargo Terminals Limited,stock,Transportation,Marine Shipping,38.478699999999996
 ATLANTAA,Atlantaa Ltd,stock,Industrial Services,Engineering & Construction,97.846
 ATLANTAELE,Atlanta Electricals Limited,stock,Producer Manufacturing,Electrical Products,8.2635
@@ -525,7 +525,6 @@ BORORENEW,Borosil Renewables Limited,stock,Process Industries,Industrial Special
 BOROSCI,Borosil Scientific Limited,stock,Process Industries,Containers/Packaging,26.8519
 BOSCHLTD,Bosch Limited,stock,Producer Manufacturing,Auto Parts: OEM,29.464499999999994
 BOSCH_HCIL,Bosch Home Comfort India Ltd,stock,Consumer Durables,Electronics/Appliances,17.327599999999997
-BOSS,Boss Packaging Solutions Limited,stock,Producer Manufacturing,Industrial Machinery,28.659999999999997
 BPCL,Bharat Petroleum Corporation Limited,stock,Energy Minerals,Oil Refining/Marketing,45.5012
 BPL,BPL Limited,stock,Electronic Technology,Telecommunications Equipment,81.49879999999999
 BPLPHARMA,Bharat Parenterals Ltd.,stock,Health Technology,Pharmaceuticals: Major,20.3188
@@ -797,6 +796,7 @@ DHARMAJ,Dharmaj Crop Guard Ltd.,stock,Process Industries,Chemicals: Agricultural
 DHATRE,Dhatre Udyog Ltd,stock,Non-Energy Minerals,Steel,96.96969999999999
 DHOOTTRANS,Dhoot Transmission Limited,stock,Producer Manufacturing,Electrical Products,15.698399999999998
 DHRUV,Dhruv Consultancy Services Ltd.,stock,Industrial Services,Engineering & Construction,88.7737
+DHTL,Doctrack Solutions Limited,stock,Technology Services,Internet Software/Services,
 DHUNINV,Dhunseri Investments Limited,stock,Process Industries,Chemicals: Specialty,15.783800000000001
 DIACABS,Diamond Power Infrastructure Limited,stock,Producer Manufacturing,Electrical Products,25.959599999999995
 DIAMINESQ,Diamines & Chemicals Ltd.,stock,Process Industries,Chemicals: Major Diversified,47.2499
@@ -805,7 +805,7 @@ DICIND,DIC India Limited,stock,Process Industries,Industrial Specialties,21.0701
 DIFFNKG,Diffusion Engineers Limited,stock,Producer Manufacturing,Industrial Machinery,24.693800000000003
 DIGIDRIVE,Digidrive Distributors Limited,stock,Retail Trade,Specialty Stores,
 DIGIKORE,Digikore Studios Limited,stock,Consumer Services,Movies/Entertainment,
-DIGISPICE,DiGiSPICE Technologies Ltd.,stock,Technology Services,Packaged Software,10.840300000000001
+DIGISPICE,DiGiSPICE Technologies Ltd.,stock,Technology Services,Packaged Software,10.8403
 DIGITIDE,Digitide Solutions Ltd,stock,Commercial Services,Miscellaneous Commercial Services,70.4096
 DIGJAMLMTD,Digjam Ltd.,stock,Process Industries,Textiles,56.185300000000005
 DISAQ,DISA India Limited,stock,Producer Manufacturing,Industrial Machinery,23.1832
@@ -877,6 +877,7 @@ ECOSMOBLTY,ECOS (India) Mobility & Hospitality Limited,stock,Finance,Finance/Ren
 EDELALTS,EAAA India Alternatives Limited,stock,Finance,Investment Managers,
 EDELWEISS,Edelweiss Financial Services Limited,stock,Finance,Investment Banks/Brokers,63.729
 EDUCOMP,Educomp Solutions Limited,stock,Commercial Services,Miscellaneous Commercial Services,49.244200000000006
+EENERGY,Edelweiss Nifty Energy ETF,fund,,,
 EEPL,Eppeltone Engineers Limited,stock,Producer Manufacturing,Electrical Products,34.9509
 EFACTOR,E Factor Experiences Ltd.,stock,Commercial Services,Miscellaneous Commercial Services,100.0
 EFCIL,EFC (I) Ltd.,stock,Distribution Services,Wholesale Distributors,40.4089
@@ -907,7 +908,6 @@ ELITECON,Elitecon International Ltd.,stock,Consumer Non-Durables,Tobacco,16.6473
 ELLEN,Ellenbarrie Industrial Gases Limited,stock,Process Industries,Chemicals: Specialty,22.8517
 ELM250,Edelweiss Nifty LargeMidcap 250 ETF Units Exchange Traded Fund,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 ELMDIV,Edelweiss BSE LargeMid (60:40) Stable Dividend 50 ETF Exchange Traded Fund Units,fund,,,
-ELPROINTL,Elpro International Ltd,stock,Electronic Technology,Electronic Components,19.1851
 EMAMILTD,Emami Limited,stock,Consumer Non-Durables,Household/Personal Care,43.3048
 EMAMIPAP,Emami Paper Mills Limited,stock,Process Industries,Pulp & Paper,15.937300000000002
 EMAMIREAL,Emami Realty Limited,stock,Finance,Real Estate Development,45.836000000000006
@@ -1000,7 +1000,7 @@ FCL,Fineotex Chemical Limited,stock,Process Industries,Industrial Specialties,32
 FCSSOFT,FCS Software Solutions Limited,stock,Commercial Services,Miscellaneous Commercial Services,66.9416
 FDC,FDC Ltd.,stock,Health Technology,Pharmaceuticals: Major,30.3419
 FEDDERSHOL,Fedders Holding Ltd,stock,Finance,Financial Conglomerates,18.561000000000003
-FEDERALBNK,Federal Bank Ltd. (India),stock,Finance,Major Banks,87.87570000000001
+FEDERALBNK,Federal Bank Ltd. (India),stock,Finance,Major Banks,87.8757
 FEDFINA,Fedbank Financial Services Ltd.,stock,Finance,Finance/Rental/Leasing,37.369
 FEL,Future Enterprises Ltd,stock,Process Industries,Textiles,63.39039999999999
 FELDVR,Future Enterprises Ltd. Class B,stock,Process Industries,Textiles,27.682000000000002
@@ -1275,7 +1275,7 @@ HCG,HealthCare Global Enterprises Ltd.,stock,Health Services,Hospital/Nursing Ma
 HCLTECH,HCL Technologies Limited,stock,Technology Services,Information Technology Services,37.3109
 HCL_INSYS,HCL Infosystems Limited,stock,Technology Services,Information Technology Services,34.1221
 HDBFS,HDB Financial Services Limited,stock,Finance,Finance/Rental/Leasing,24.632799999999996
-HDFCAMC,HDFC Asset Management Co. Ltd.,stock,Finance,Investment Managers,47.5335
+HDFCAMC,HDFC Asset Management Co. Ltd.,stock,Finance,Investment Managers,47.533500000000004
 HDFCBANK,HDFC Bank Limited,stock,Finance,Major Banks,99.62570000000001
 HDFCBSE500,HDFC BSE 500 ETF Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 HDFCGOLD,HDFC Gold ETF,fund,Miscellaneous,Investment Trusts/Mutual Funds,
@@ -1827,7 +1827,7 @@ LLOYDSENT,Lloyds Enterprises Limited,stock,Distribution Services,Wholesale Distr
 LLOYDSME,Lloyds Metals & Energy Ltd.,stock,Non-Energy Minerals,Steel,22.3317
 LMW,LMW Limited,stock,Producer Manufacturing,Industrial Machinery,37.7604
 LOANFRONT,Vaibhav Vyapaar Limited,stock,Finance,Investment Banks/Brokers,
-LODHA,Lodha Developers Ltd.,stock,Finance,Real Estate Development,28.191600000000005
+LODHA,Lodha Developers Ltd.,stock,Finance,Real Estate Development,28.191599999999994
 LOKESHMACH,Lokesh Machines Ltd,stock,Technology Services,Information Technology Services,47.0555
 LORDSCHLO,Lords Chloro Alkali Limited,stock,Process Industries,Chemicals: Specialty,65.3712
 LOTUSCHO,Lotus Chocolate Co. Ltd.,stock,Consumer Non-Durables,Food: Specialty/Candy,24.6371
@@ -1878,7 +1878,7 @@ MAHEPC,Mahindra EPC Irrigation Limited,stock,Producer Manufacturing,Trucks/Const
 MAHESHWARI,Maheshwari Logistics Ltd.,stock,Transportation,Air Freight/Couriers,34.7033
 MAHICKRA,Mahickra Chemicals Ltd.,stock,Process Industries,Chemicals: Specialty,
 MAHKTECH,Mirae Asset Hang Seng TECH ETF Units Exchange Traded Fund,fund,Miscellaneous,Investment Trusts/Mutual Funds,
-MAHLIFE,Mahindra Lifespace Developers Limited,stock,Finance,Real Estate Development,47.328300000000006
+MAHLIFE,Mahindra Lifespace Developers Limited,stock,Finance,Real Estate Development,47.3283
 MAHLOG,Mahindra Logistics Ltd.,stock,Transportation,Air Freight/Couriers,40.435
 MAHSCOOTER,Maharashtra Scooters Ltd,stock,Finance,Financial Conglomerates,37.82050000000001
 MAHSEAMLES,Maharashtra Seamless Limited,stock,Non-Energy Minerals,Steel,27.123800000000003
@@ -1898,6 +1898,7 @@ MANAKSIA,Manaksia Limited,stock,Non-Energy Minerals,Steel,23.8718
 MANAKSTEEL,Manaksia Steels Ltd,stock,Non-Energy Minerals,Steel,30.538399999999992
 MANALIPETC,Manali Petrochemicals Limited,stock,Process Industries,Chemicals: Specialty,47.6591
 MANAPPURAM,Manappuram Finance Limited,stock,Finance,Finance/Rental/Leasing,68.1582
+MANAV,Manav Infra Projects Ltd.,stock,Industrial Services,Engineering & Construction,
 MANBA,Manba Finance Limited,stock,Finance,Finance/Rental/Leasing,23.3488
 MANCREDIT,Mangal Credit & Fincorp Ltd.,stock,Finance,Finance/Rental/Leasing,
 MANDEEP,Mandeep Auto Industries Limited,stock,Producer Manufacturing,Building Products,
@@ -2017,6 +2018,7 @@ MINDSPACE.RR,Mindspace Business Parks REIT,stock,Finance,Real Estate Investment 
 MINDTECK,Mindteck (India) Limited,stock,Technology Services,Information Technology Services,23.6624
 MIRZAINT,Mirza International Limited,stock,Consumer Non-Durables,Apparel/Footwear,26.566799999999997
 MITCON,MITCON Consultancy & Engineering Services Ltd.,stock,Commercial Services,Miscellaneous Commercial Services,25.787599999999998
+MITSU,Mitsu Chem Plast Ltd,stock,Producer Manufacturing,Miscellaneous Manufacturing,29.439799999999998
 MITTAL,Mittal Life Style Ltd.,stock,Process Industries,Textiles,
 MKEXIM,M.K. Exim (India) Limited,stock,Process Industries,Textiles,
 MKJEWELS,M. K. Sons Fine Jewels Limited,stock,Consumer Durables,Other Consumer Specialties,
@@ -2099,7 +2101,7 @@ MOVALUE,Motilal Oswal S&P BSE Enhanced Value ETF Exchange Traded Fund Units,fund
 MOXSH,Moxsh Overseas Educon Limited,stock,Technology Services,Internet Software/Services,
 MPDL,MPDL Ltd,stock,Industrial Services,Engineering & Construction,
 MPEL,Manas Polymers & Energies Ltd.,stock,Process Industries,Containers/Packaging,37.3971
-MPHASIS,Mphasis Limited,stock,Technology Services,Packaged Software,67.5189
+MPHASIS,Mphasis Limited,stock,Technology Services,Packaged Software,67.51889999999999
 MPIMANIPAL,Manipal Payment and Identity Solutions Limited,stock,Commercial Services,Commercial Printing/Forms,23.366899999999998
 MPSLTD,MPS Limited,stock,Consumer Services,Publishing: Books/Magazines,27.141800000000003
 MRF,MRF Limited,stock,Consumer Durables,Automotive Aftermarket,53.378099999999996
@@ -2154,7 +2156,7 @@ NATIONALUM,National Aluminium Co. Ltd.,stock,Non-Energy Minerals,Aluminum,48.688
 NATIONSTD,National Standard (India) Ltd.,stock,Finance,Real Estate Development,3.5135
 NAUKRI,Info Edge India Ltd.,stock,Technology Services,Internet Software/Services,54.08489999999999
 NAVA,Nava Limited,stock,Utilities,Electric Utilities,47.6702
-NAVINFLUOR,Navin Fluorine International Limited,stock,Process Industries,Chemicals: Specialty,63.482400000000005
+NAVINFLUOR,Navin Fluorine International Limited,stock,Process Industries,Chemicals: Specialty,63.48239999999999
 NAVKARCORP,Navkar Corporation Ltd,stock,Transportation,Other Transportation,28.3082
 NAVKARURB,Navkar Urbanstructure Limited,stock,Non-Energy Minerals,Construction Materials,
 NAVNETEDUL,Navneet Education Limited,stock,Producer Manufacturing,Office Equipment/Supplies,40.6279
@@ -3261,7 +3263,6 @@ TINNARUBR,Tinna Rubber & Infrastructure Limited,stock,Process Industries,Industr
 TIPSFILMS,Tips Films Limited,stock,Consumer Services,Movies/Entertainment,
 TIPSMUSIC,Tips Music Limited,stock,Consumer Services,Movies/Entertainment,34.4247
 TIRUMALCHM,Thirumalai Chemicals Limited,stock,Process Industries,Chemicals: Specialty,58.4091
-TIRUPATI,Shree Tirupati Balajee FIBC Ltd.,stock,Process Industries,Containers/Packaging,18.5895
 TIRUPATIFL,Tirupati Forge Ltd.,stock,Producer Manufacturing,Industrial Conglomerates,100.0
 TITAGARH,Titagarh Rail Systems Ltd,stock,Producer Manufacturing,Trucks/Construction/Farm Machinery,59.471
 TITAN,Titan Company Limited,stock,Consumer Durables,Other Consumer Specialties,41.3518
@@ -3538,7 +3539,6 @@ WHIRLPOOL,Whirlpool Of India Limited,stock,Consumer Durables,Electronics/Applian
 WHITEFORCE,Happy Square Outsourcing Services Limited,stock,Commercial Services,Personnel Services,17.454700000000003
 WINDLAS,Windlas Biotech Ltd.,stock,Health Technology,Pharmaceuticals: Major,35.3596
 WINDMACHIN,Windsor Machines Limited,stock,Producer Manufacturing,Industrial Machinery,52.988099999999996
-WINNY,Winny Immigration & Education Services Ltd.,stock,Commercial Services,Miscellaneous Commercial Services,
 WINSOL,Winsol Engineers Limited,stock,Industrial Services,Engineering & Construction,
 WIPL,Western India Plywoods Ltd.,stock,Non-Energy Minerals,Forest Products,
 WIPRO,Wipro Limited,stock,Technology Services,Information Technology Services,26.649500000000003
