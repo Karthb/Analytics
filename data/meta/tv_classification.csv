@@ -708,6 +708,7 @@ CRIZAC,Crizac Limited,stock,Technology Services,Internet Software/Services,20.06
 CROMPTON,Crompton Greaves Consumer Electricals Ltd.,stock,Producer Manufacturing,Industrial Machinery,99.68599999999999
 CROWN,Crown Lifters Ltd.,stock,Finance,Finance/Rental/Leasing,26.512999999999998
 CRSL,Cressanda Railway Solutions Ltd,stock,Technology Services,Information Technology Services,99.0837
+CRYSTALCP,CRYSTAL CROP PROTECTION L,stock,Process Industries,Chemicals: Agricultural,
 CSBBANK,CSB Bank Ltd.,stock,Finance,Major Banks,51.8752
 CSLFINANCE,CSL Finance Limited,stock,Finance,Investment Banks/Brokers,34.3266
 CSM,CSM Technologies Ltd.,stock,Technology Services,Information Technology Services,17.176
@@ -877,7 +878,7 @@ ECOSMOBLTY,ECOS (India) Mobility & Hospitality Limited,stock,Finance,Finance/Ren
 EDELALTS,EAAA India Alternatives Limited,stock,Finance,Investment Managers,
 EDELWEISS,Edelweiss Financial Services Limited,stock,Finance,Investment Banks/Brokers,63.729
 EDUCOMP,Educomp Solutions Limited,stock,Commercial Services,Miscellaneous Commercial Services,49.244200000000006
-EENERGY,Edelweiss Nifty Energy ETF,fund,,,
+EENERGY,Edelweiss Nifty Energy ETF Units Exchange Traded Fund,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 EEPL,Eppeltone Engineers Limited,stock,Producer Manufacturing,Electrical Products,34.9509
 EFACTOR,E Factor Experiences Ltd.,stock,Commercial Services,Miscellaneous Commercial Services,100.0
 EFCIL,EFC (I) Ltd.,stock,Distribution Services,Wholesale Distributors,40.4089
@@ -2030,6 +2031,7 @@ MMP,MMP Industries Ltd.,stock,Non-Energy Minerals,Other Metals/Minerals,22.8902
 MMTC,MMTC Limited,stock,Distribution Services,Wholesale Distributors,10.0731
 MMWL,Media Matrix Worldwide Limited,stock,Technology Services,Information Technology Services,7.5032000000000085
 MNC,Kotak Nifty MNC Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
+MO10YGSEC,MOTILALAMC - MO10YGSEC,fund,,,
 MOALPHA50,Motilal Oswal Nifty Alpha 50 ETF Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 MOBANK10,Motilal Oswal Mutual Fund - Motilal Oswal BSE Top 10 Banks ETF Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 MOBIKWIK,One Mobikwik Systems Limited,stock,Commercial Services,Miscellaneous Commercial Services,43.425
@@ -2043,6 +2045,7 @@ MODISONLTD,Modison Limited,stock,Industrial Services,Engineering & Construction,
 MODTHREAD,Modern Threads (India) Ltd,stock,Process Industries,Textiles,
 MOENERGY,Motilal Oswal Nifty Energy ETF Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 MOGOLD,Motilal Oswal Gold ETF Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
+MOGROWTH,MOTILALAMC - MOGROWTH,fund,,,
 MOGSEC,MOTILAL OSWAL 5 YEAR G-SEC ETF Exchange Traded Fund,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 MOHEALTH,Motilal Oswal S&P BSE Healthcare ETF,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 MOHITE,Mohite Industries Ltd.,stock,Process Industries,Textiles,
@@ -2083,9 +2086,12 @@ MONQ50,Motilal Oswal Nasdaq Q 50 ETF Exchange Traded Fund Units,fund,Miscellaneo
 MONTECARLO,Monte Carlo Fashions Ltd.,stock,Consumer Non-Durables,Apparel/Footwear,25.529199999999996
 MOOILGAS,Motilal Oswal Nifty Oil & Gas ETF Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 MOPSE,Motilal Oswal Nifty PSE ETF Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
+MOPSUBANK,MOTILALAMC - MOPSUBANK,fund,,,
+MOPVTBANK,MOTILALAMC - MOPVTBANK,fund,,,
 MOQUALITY,Motilal Oswal S&P BSE Quality ETF Exchange Traded Fund Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
 MORARJEE,Morarjee Textiles Limited,stock,Process Industries,Textiles,
 MOREALTY,Motilal Oswal Nifty Realty ETF Units Exchange Traded Fund,fund,Miscellaneous,Investment Trusts/Mutual Funds,
+MOREIT,MOTILALAMC - MOREIT,fund,,,
 MOREPENLAB,Morepen Laboratories Limited,stock,Health Technology,Pharmaceuticals: Major,57.3519
 MOS,MOS Utility Ltd.,stock,Technology Services,Internet Software/Services,
 MOSCHIP,Moschip Technologies Ltd,stock,Electronic Technology,Semiconductors,56.0484
@@ -2106,6 +2112,7 @@ MPIMANIPAL,Manipal Payment and Identity Solutions Limited,stock,Commercial Servi
 MPSLTD,MPS Limited,stock,Consumer Services,Publishing: Books/Magazines,27.141800000000003
 MRF,MRF Limited,stock,Consumer Durables,Automotive Aftermarket,53.378099999999996
 MRIL,Mahendra Realtors & Infrastructure Limited,stock,Industrial Services,Engineering & Construction,0.060400000000005435
+MROTEK,MRO-TEK Networks Limited,stock,Electronic Technology,Electronic Production Equipment,32.746199999999995
 MRPL,Mangalore Refinery & Petrochemicals Ltd.,stock,Energy Minerals,Oil Refining/Marketing,10.0255
 MSCI360,360 ONE MSCI India ETF Units,fund,,,
 MSCIADD,DSP MSCI India ETF Units,fund,Miscellaneous,Investment Trusts/Mutual Funds,
@@ -2371,7 +2378,6 @@ PARNAXLAB,Parnax Lab Limited,stock,Health Technology,Pharmaceuticals: Major,
 PARSVNATH,Parsvnath Developers Limited,stock,Finance,Real Estate Development,47.6253
 PARTH,Parth Electricals & Engineering Limited,stock,Producer Manufacturing,Electrical Products,26.796699999999994
 PARTYCRUS,Party Cruisers Limited,stock,Consumer Services,Other Consumer Services,
-PARTYPP.E1,Party Cruisers Limited TEMP,stock,Consumer Services,Other Consumer Services,
 PASHUPATI,Pashupati Cotspin Ltd.,stock,Process Industries,Textiles,20.1841
 PASUPTAC,Pasupati Acrylon Limited,stock,Process Industries,Textiles,34.1333
 PATANJALI,Patanjali Foods Limited,stock,Process Industries,Agricultural Commodities/Milling,21.8611
@@ -3346,7 +3352,6 @@ ULTRAMAR,Ultramarine & Pigments Limited,stock,Process Industries,Chemicals: Spec
 UMA,Uma Converter Limited,stock,Process Industries,Containers/Packaging,31.687000000000005
 UMAEXPORTS,Uma Exports Ltd.,stock,Distribution Services,Wholesale Distributors,
 UMESLTD,Usha Martin Education & Solutions Limited,stock,Producer Manufacturing,Metal Fabrication,
-UMIYA_MRO,MRO-TEK Networks Limited,stock,Electronic Technology,Electronic Production Equipment,32.746199999999995
 UNICHEMLAB,Unichem Laboratories Limited,stock,Health Technology,Pharmaceuticals: Major,28.356
 UNIDT,United Drilling Tools Limited,stock,Industrial Services,Oilfield Services/Equipment,22.4986
 UNIECOM,Unicommerce eSolutions Limited,stock,Technology Services,Packaged Software,37.7039
@@ -3424,6 +3429,7 @@ VENUSREM,Venus Remedies Limited,stock,Health Technology,Pharmaceuticals: Major,5
 VERA,Vera Synthetic Ltd.,stock,Process Industries,Textiles,
 VERANDA,Veranda Learning Solutions Ltd.,stock,Commercial Services,Miscellaneous Commercial Services,38.76720000000001
 VERITAAS,Veritaas Advertising Ltd.,stock,Commercial Services,Advertising/Marketing Services,27.9497
+VERTEXPLUS,Vertexplus Technologies Ltd.,stock,Commercial Services,Miscellaneous Commercial Services,23.326500000000003
 VERTIS,Vertis Infrastructure Trust Units,stock,Miscellaneous,Investment Trusts/Mutual Funds,
 VERTOZ,Vertoz Ltd,stock,Commercial Services,Advertising/Marketing Services,62.39169999999999
 VESUVIUS,Vesuvius India Ltd,stock,Non-Energy Minerals,Construction Materials,43.947
@@ -3473,6 +3479,7 @@ VISHAL,Vishal Fabrics Ltd,stock,Process Industries,Textiles,31.9109
 VISHNU,Vishnu Chemicals Limited,stock,Process Industries,Chemicals: Specialty,29.9113
 VISHNUINFR,Vishnusurya Projects & Infra Limited,stock,Non-Energy Minerals,Construction Materials,
 VISHWARAJ,Vishwaraj Sugar Industries Ltd.,stock,Process Industries,Agricultural Commodities/Milling,47.72559999999999
+VISHWAS,Vishwas Agri Seeds Limited,stock,Process Industries,Agricultural Commodities/Milling,
 VISL,Vedanta Iron And Steel Limited,stock,Non-Energy Minerals,Steel,100.0
 VITAL,Vital Chemtech Ltd.,stock,Process Industries,Chemicals: Specialty,
 VIVIANA,Viviana Power Tech Limited,stock,Industrial Services,Engineering & Construction,25.7957
@@ -3539,6 +3546,7 @@ WHIRLPOOL,Whirlpool Of India Limited,stock,Consumer Durables,Electronics/Applian
 WHITEFORCE,Happy Square Outsourcing Services Limited,stock,Commercial Services,Personnel Services,17.454700000000003
 WINDLAS,Windlas Biotech Ltd.,stock,Health Technology,Pharmaceuticals: Major,35.3596
 WINDMACHIN,Windsor Machines Limited,stock,Producer Manufacturing,Industrial Machinery,52.988099999999996
+WINNY,Winny Immigration & Education Services Ltd.,stock,Commercial Services,Miscellaneous Commercial Services,
 WINSOL,Winsol Engineers Limited,stock,Industrial Services,Engineering & Construction,
 WIPL,Western India Plywoods Ltd.,stock,Non-Energy Minerals,Forest Products,
 WIPRO,Wipro Limited,stock,Technology Services,Information Technology Services,26.649500000000003
